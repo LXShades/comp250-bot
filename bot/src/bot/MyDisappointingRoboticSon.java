@@ -83,7 +83,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
         for (Unit unit : pgs.getUnits()) {
             // TODO: issue commands to units
         	if (unit.getPlayer() == player) {
-        		if (unit.getType() == worker && enemy != null) {
+        		if (unit.getType() == worker) {
         			if (!doneFirstWorker) {
             			// Go collect resources and stuff
         				Unit closestResource = null, closestBase = null;
@@ -94,9 +94,11 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
         				closestBase = FindClosestUnit(pgs, unit.getX(), unit.getY(), 
         						(Unit u) -> u.getType() == base && u.getPlayer() == player);
         				
-        				harvest(unit, closestResource, closestBase);
+        				if (closestResource != null && closestBase != null) {
+            				harvest(unit, closestResource, closestBase);	
+        				}
             			doneFirstWorker = true;
-        			} else {
+        			} else if (enemy != null) {
             			attack(unit, enemy);
         			}
         		}
