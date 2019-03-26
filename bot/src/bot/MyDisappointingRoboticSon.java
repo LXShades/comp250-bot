@@ -14,11 +14,20 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.Callable;
+
 import rts.*;
 import rts.units.Unit;
 import rts.units.UnitType;
 import rts.units.UnitTypeTable;
 
+
+@FunctionalInterface
+interface UnitConditions
+{ 
+    boolean meetsConditions(Unit u);
+} 
+  
 public class MyDisappointingRoboticSon extends AbstractionLayerAI {    
     private UnitTypeTable utt;
     private UnitType worker;
@@ -79,14 +88,11 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
             			// Go collect resources and stuff
         				Unit closestResource = null, closestBase = null;
         				
-        				for (Unit b : bases) {
-        					if (b.getPlayer() == player) {
-            					closestBase = b;
-        					} 
-        				}
-        				for (Unit r : resources) {
-        					closestResource = r;
-        				}
+        				// Find the closest relevant units
+        				closestResource = FindClosestUnit(pgs, unit.getX(), unit.getY(), 
+        						(Unit u) -> u.getType().isResource);
+        				closestBase = FindClosestUnit(pgs, unit.getX(), unit.getY(), 
+        						(Unit u) -> u.getType() == base && u.getPlayer() == player);
         				
         				harvest(unit, closestResource, closestBase);
             			doneFirstWorker = true;
@@ -110,5 +116,27 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
     @Override
     public List<ParameterSpecification> getParameters() {
         return new ArrayList<>();
+    }
+    
+    private Unit FindClosestUnit(PhysicalGameState pgs, int x, int y, UnitConditions yolo) {
+    	int closestDistance = Integer.MAX_VALUE;
+    	Unit closestUnit = null;
+    	
+    	// Find the unit closest to the supplied position
+    	for (Unit unit : pgs.getUnits()) {
+    		// Ensure the unit meets the supplied conditions
+    		if (yolo.meetsConditions(unit)) {
+    			/* Since only horizontal and vertical movements are possible, 
+    			 * distance is always equal to xDifference + yDifference */
+    			int thisDistance = Math.abs(unit.getX() - x) + Math.abs(unit.getY() - y);
+    			 
+    			if (thisDistance < closestDistance) {
+    				closestUnit = unit;
+    				closestDistance = thisDistance;
+    			}
+    		}
+    	}
+    	
+    	return closestUnit;
     }
 }
