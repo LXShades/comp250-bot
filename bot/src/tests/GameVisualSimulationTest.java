@@ -36,7 +36,7 @@ public class GameVisualSimulationTest implements KeyListener {
 	
 	public GameVisualSimulationTest() throws Exception {
         UnitTypeTable utt = new UnitTypeTable();
-        PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/16x16/basesWorkers16x16.xml", utt);
+        PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/8x8/bases8x8.xml", utt);
 //        PhysicalGameState pgs = MapGenerator.basesWorkers8x8Obstacle();
 
         GameState gs = new GameState(pgs, utt);
@@ -52,7 +52,6 @@ public class GameVisualSimulationTest implements KeyListener {
 //        JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_WHITE);
 
         w.addKeyListener(this);
-        
         
         long nextTimeToUpdate = System.currentTimeMillis() + PERIOD;
         do{
