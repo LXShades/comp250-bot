@@ -225,7 +225,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
     
     private void buildBarracks(Player player, PhysicalGameState pgs, Unit worker) {
         List<Integer> reservedPositions = new LinkedList<Integer>();
-    	buildIfNotAlreadyBuilding(worker, barracks, worker.getX() + 3, worker.getY(), reservedPositions, player, pgs);
+    	buildIfNotAlreadyBuilding(worker, barracks, worker.getX(), worker.getY(), reservedPositions, player, pgs);
     }
     
     // attacking worker:
