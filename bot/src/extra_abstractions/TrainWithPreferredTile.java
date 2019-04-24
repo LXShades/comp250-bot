@@ -1,4 +1,4 @@
-package bot;
+package extra_abstractions;
 
 import ai.abstraction.AbstractAction;
 import ai.abstraction.Train;

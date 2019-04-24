@@ -27,6 +27,7 @@ import rts.PhysicalGameState;
 import rts.PlayerAction;
 import rts.units.UnitTypeTable;
 import util.XMLWriter;
+import utilities.DebugUtils;
 
 /**
  *
@@ -61,7 +62,7 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
         // Make the world easier for myself, Louis, the almighty creator of the finest and highly tested robots.
         w.addWindowListener(this); // let me close the window without it still running!
         w.addKeyListener(this);    // let me fast-forward, slow down, and pause the game!
-        PhysicalGameStatePanel.unitLabels = ((MyDisappointingRoboticSon)ai1).getUnitLabels();
+        PhysicalGameStatePanel.unitLabels = DebugUtils.getUnitLabels();
         
         long nextTimeToUpdate = System.currentTimeMillis() + PERIOD;
         boolean doFrameStep = false;
@@ -79,11 +80,11 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
             	doFrameStep = false;
             }
             
-            if (pause || ((MyDisappointingRoboticSon)ai1).isPaused()) {
+            if (pause || DebugUtils.isPaused()) {
             	speed = 0;
             	
             	if (pause) {
-            		((MyDisappointingRoboticSon)ai1).unpause();
+            		DebugUtils.unpause();
             	}
             	
             	// Advance one frame if right key is pressed
