@@ -16,7 +16,9 @@ import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Collection;
 import java.util.concurrent.Callable;
+import java.util.HashMap;
 
 import rts.*;
 import rts.units.Unit;
@@ -45,6 +47,11 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 	private Player player = null; // Current player
 	private GameState gs; // Current game state
 	private PhysicalGameState pgs; // Current physical game state
+	
+	// Debug variables
+	private boolean isPaused; // whether GameVisualSimulationTest should pause
+	
+	private HashMap<Unit, String> unitLabels = new HashMap<Unit, String>();
 
 	public MyDisappointingRoboticSon(UnitTypeTable utt) {
 		// Initialise parent
@@ -127,7 +134,11 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		boolean doBuildBarracks = numRanged < 1 && closestEnemyTimeToBase > 80 && numWorkers > 1;
 		int numWorkersCollectingStuff = 0;
 		int numUsableResources = gs.getPlayer(player).getResources();
+		int numBrothers = 0;
+		Unit brothers[] = new Unit[2];
 
+		doBuildBarracks = false; // temp: disable barracks build
+		
 		for (Unit unit : pgs.getUnits()) {
 			if (unit.getPlayer() == player) {
 				if (unit.getType() == worker) {
@@ -138,16 +149,20 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 					} else if (numWorkersCollectingStuff == 1 && doBuildBarracks) {
 						workerBuildBarracksStrategy(unit);
 						
-						//debug("build time remaining " + timeToFinishAction(unit));
-						
 						numWorkersCollectingStuff++;
+					} else if (numBrothers < 2) {
+						brothers[numBrothers++] = unit;
 					} else {
 						// Attack the closest enemy
-						Unit closestEnemy = findClosestUnit(unit.getX(), unit.getY(),
-								(Unit u) -> u.getPlayer() != player && u.getPlayer() != -1);
+						Unit closestEnemy = findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getPlayer() != player && u.getPlayer() != -1);
 
-						if (closestEnemy != null) {
-							attack(unit, closestEnemy);
+						if (closestEnemy != null && getUnitAction(unit) == null) {
+							if (dodgeStrategy(unit, closestEnemy)) {
+								unitLabels.put(unit, "Basic: Dodging!");
+							} else {
+								unitLabels.put(unit, "Basic: Charrge!");
+								attack(unit, closestEnemy);
+							}
 							targetedEnemies.add(closestEnemy);
 						}
 					}
@@ -163,13 +178,12 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 							actions.put(unit, new DoNothing(unit, 3));
 							continue;
 						}
-						if (numUsableResources >= worker.cost
-								&& (numUsableResources > barracks.cost + 1 || !doBuildBarracks)) {
+						if (numUsableResources >= worker.cost && (numUsableResources > barracks.cost + 1 || !doBuildBarracks)) {
 							// Produce a worker
 							if (numWorkers == 0) {
+								// Drop a collector
 								// Put a worker in the position closest to a resource
-								Unit closestResource = findClosestUnit(unit.getX(), unit.getY(),
-										(Unit u) -> u.getType().isResource);
+								Unit closestResource = findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getType().isResource);
 								int trainX = 0, trainY = 0;
 
 								if (closestResource != null) {
@@ -177,12 +191,11 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 									trainY = closestResource.getY();
 								}
 
-								debug("Dropping a worker for " + trainX + ", " + trainY);
 								actions.put(unit, new TrainWithPreferredTile(unit, worker, trainX, trainY));
 							} else {
+								// Drop an attacker
 								// Put a worker in the position closest to an enemy unit
 								actions.put(unit, new TrainWithPreferredTile(unit, worker, 10, 10));
-								debug("Dropping an attacker");
 							}
 						} else {
 							debug("Doing nothing for a while (res " + numUsableResources + ", " + doBuildBarracks
@@ -204,8 +217,21 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 					Unit closestEnemy = findClosestUnit(unit.getX(), unit.getY(),
 							(Unit u) -> u.getPlayer() != player && u.getPlayer() != -1);
 					attack(unit, closestEnemy);
-					debug("my closest enemy is " + closestEnemy);
+					debug("I'm Ranged. My closest enemy is " + closestEnemy);
 				}
+			}
+		}
+		
+		// Test the brothers strategy
+		if (numBrothers == 2) {
+			evilBrotherStrategy(brothers[0], brothers[1]);
+		}
+		
+
+		// Assign empty actions to units which do not have any action
+		for (Unit u : pgs.getUnits()) {
+			if (u.getPlayer() == playerId && getUnitAction(u) == null && (!actions.containsKey(u) || actions.get(u).completed(gs))) {
+				actions.put(u, new DoNothing(u, 1));
 			}
 		}
 
@@ -269,14 +295,202 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		List<Integer> reservedPositions = new LinkedList<Integer>();
 		buildIfNotAlreadyBuilding(worker, barracks, worker.getX(), worker.getY(), reservedPositions, player, pgs);
 	}
-
+	
 	// Sends a pair of brothers, one to lure an attacker in and the other to kill the attacker
-	/*private void brotherStrategy(Unit brotherA, Unit brotherB) {
-		// ===== evil brothers strategy =====
-		// wait for enemy about to move to adjacent tiles
-		// if brother B is in valid position, prepare to move back
-		// brother B prepares to move into place
-	}*/
+	private void evilBrotherStrategy(Unit brotherA, Unit brotherB) {
+		Unit attacker, bait, victim;
+
+		// Choose the victim bot
+		Unit closestToA = findClosestUnit(brotherA.getX(), brotherA.getY(), (Unit u) -> u.getPlayer() != playerId && u.getType().canAttack);
+		Unit closestToB = findClosestUnit(brotherB.getX(), brotherB.getY(), (Unit u) -> u.getPlayer() != playerId && u.getType().canAttack);
+		
+		if (closestToA == null) {
+			// To achieve this strategy we need a victim
+			return;
+		}
+		
+		// Decide who should be the attacker and baiter
+		if (timeToReach(brotherA, closestToA) < timeToReach(brotherB, closestToB)) {
+			bait = brotherA;
+			attacker = brotherB;
+			victim = closestToA;
+		} else {
+			bait = brotherB;
+			attacker = brotherA;
+			victim = closestToB;
+		}
+		
+		// If the enemy is moving to a tile next to attacker/baiter, attacker and baiter can be clearly defined
+		int victimNextX = victim.getX(), victimNextY = victim.getY();
+		UnitActionAssignment victimAssignment = gs.getActionAssignment(victim);
+		UnitAction victimAction = victimAssignment != null ? victimAssignment.action : null;
+
+		unitLabels.put(brotherA, getUnitAction(brotherA) + "/" + actions.get(brotherA));
+		unitLabels.put(brotherB, getUnitAction(brotherB) + "/" + actions.get(brotherB));
+		
+		if (victimAction != null && victimAction.getType() == UnitAction.TYPE_MOVE) {
+			// Get the victim's predicted movement
+			victimNextX = victim.getX() + UnitAction.DIRECTION_OFFSET_X[victimAction.getDirection()];
+			victimNextY = victim.getY() + UnitAction.DIRECTION_OFFSET_Y[victimAction.getDirection()];
+			
+			// Check if the point is a neighbour to one of the brother's positions
+			boolean letsDoThis = false;
+			if (unitDistance(brotherA, victimNextX, victimNextY) == 1) {
+				// A is the bait: A should run!
+				bait = brotherA;
+				attacker = brotherB;
+				letsDoThis = true;
+			} else if (unitDistance(brotherB, victimNextX, victimNextY) == 1) {
+				// B is the bait: B should run!
+				bait = brotherB;
+				attacker = brotherA;
+				letsDoThis = true;
+			}
+			
+			// Are we close enough to do the strategy?
+			if (letsDoThis) {
+				// Lure the victim in and attack them
+				int victimTimeTilMove = timeToFinishAction(victim);
+				
+				// ===== BAIT ACTION =====
+				// The bait will dodge just after the victim moves
+				unitLabels.put(bait, "Dodging");
+				dodgeStrategy(bait, victim);
+				
+				// ===== ATTACKER ACTION =====
+				if (victimTimeTilMove < attacker.getMoveTime() - 1) {
+					// Find the tile which neighbours the enemy
+					int attackDirection = UnitAction.DIRECTION_NONE;
+					
+					for (int direction = 0; direction < 4; direction++) {
+						int targetX = attacker.getX() + UnitAction.DIRECTION_OFFSET_X[direction], targetY = attacker.getY() + UnitAction.DIRECTION_OFFSET_Y[direction];
+
+						if (distance(victimNextX, victimNextY, targetX, targetY) == 1 && gs.free(targetX, targetY)) {
+							attackDirection = direction;
+						}
+					}
+
+					// Let's go
+					if (attackDirection != UnitAction.DIRECTION_NONE) {
+						unitLabels.put(attacker, "Attacking");
+						actions.put(attacker, new Step(attacker, attackDirection));
+					} else {
+						unitLabels.put(attacker, "Couldn't attack!");
+					}
+				}
+				else
+				{
+					// Wait diligently
+					unitLabels.put(attacker, "Waiting to attack");
+					actions.put(attacker, new DoNothing(attacker, 1));
+				}
+			}
+		}
+		else if (unitDistance(victim, brotherA) == 1 && getUnitAction(brotherA) == null) {
+			// Attack the victim - if this victim isn't able to dodge it
+			unitLabels.put(brotherA, "Attacking neighbour!");
+			attack(brotherA, victim);
+		}
+		else if (unitDistance(victim, brotherB) == 1 && getUnitAction(brotherB) == null) {
+			// Presumably, we're ready to attack the victim now
+			unitLabels.put(brotherB, "Attacking neighbour!");
+			attack(brotherB, victim);
+		}
+		
+		// move bait to interception position
+		if (unitDistance(bait, victim) > 2) {
+			move(bait, victim.getX(), victim.getY() - 1);
+			move(attacker, victim.getX(), victim.getY() - 2);
+		}
+	}
+	
+	// Dodges nearby attacks with a delay ('hopeful attack period')
+	// if enemyToDodge is null, the nearest enemy will be identified and dodged
+	// if enemyToDodge is out of range, nothing will happen
+	// The strategy automatically attacks enemies that are likely to kill the player
+	// The dodgeStrategy will either override other strategies or leave them untouched
+	private boolean dodgeStrategy(Unit u, Unit enemyToDodge) {
+		if (enemyToDodge == null) {
+			// Decide an enemy to dodge
+			return false; // todo
+		}
+		
+		// Can we act now?
+		if (getUnitAction(u) != null) {
+			return false; // can't do anything yet
+		}
+
+		// Dodge the enemy if a) they are about to move next to us and b) we have time to run
+		int enemyTimeTilMove = timeToFinishAction(enemyToDodge);
+		
+		if (enemyTimeTilMove < u.getMoveTime() - 1 && enemyTimeTilMove + enemyToDodge.getAttackTime() > u.getMoveTime()) {
+			// Run to a safe neighbouring tile
+			int runDirection = findSafestNeighbour(u.getX(), u.getY(), u.getMoveTime());
+			
+			actions.put(u, new Step(u, runDirection));
+			return true;
+		}
+		else
+		{
+			// We either haven't encountered an enemy yet, or we can't move in time to escape. Eye for an eye, find nearby enemies to attack
+			// Don't attack them if they're about to run away. We ain't gonna get outplayed by our own strategy!
+			return attackDangerousNeighbourStrategy(u);
+		}
+	}
+	
+	// Attacks any enemies that could kill this unit before this unit can run
+	// todo: ranged unit support
+	private boolean attackDangerousNeighbourStrategy(Unit u) {
+		if (getUnitAction(u) != null) {
+			return false;
+		}
+		
+		// Find a neighbouring enemy to attack
+		List<Unit> enemyToAttack = findUnits((Unit e) -> e.getPlayer() != playerId && unitDistance(e, u) <= u.getAttackRange() + 1);
+		boolean isInDanger = false;
+		
+		for (Unit enemy : enemyToAttack) {
+			UnitAction enemyAction = getUnitAction(enemy);
+			int enemyActionDuration = timeToFinishAction(enemy);
+			int enemyX = getUnitX(enemy, u.getMoveTime()), enemyY = getUnitY(enemy, u.getMoveTime()); 
+			
+			// Check if this enemy could attack us here before we can run
+			if (unitDistance(u, enemyX, enemyY) <= enemy.getAttackRange() && timeToFinishAction(enemy) + enemy.getAttackTime() <= u.getMoveTime()) {
+				// It's officially unsafe to run (assuming the enemy attacks us)
+				isInDanger = true;
+				
+				// Check if we can actually kill this enemy before they kill us.
+				// If we can't, don't bother trying - we will lose time
+				if (unitDistance(u, enemy.getX(), enemy.getY()) <= u.getAttackRange() && enemy.getAttackTime() >= u.getAttackTime()) {
+					// Attack this enemy
+					unitLabels.put(u, "DangNeighbor: Attack");
+					attack(u, enemy);
+					return true;
+				}
+			}
+		}
+		
+		// If no one was attacked, but there is a dangerous enemy approaching, wait for it to arrive and kill it
+		if (isInDanger) {
+			unitLabels.put(u, "DangNeighbor: In danger, waiting for attack");
+			actions.put(u, new DoNothing(u, 1));
+		}
+		
+		return isInDanger;
+	}
+	
+	// AttackVulnerableNeighbourStrategy
+	
+	// Do a tree search to find an optimal direction to run away
+	private void scoobyShaggyStrategy() {
+		// Create a tree containing GameStates with positions of nearby units
+		// Explore all possible combinations of moves for each opponent
+		// Choose the move that optimises for 'number of free spaces for me to run in'
+		
+		/* create tree */
+		
+		/* for 'depth' game ticks: */
+	}
 	
 	// Returns a list of units that match the condition specified
 	private List<Unit> findUnits(UnitConditions conditions) {
@@ -291,7 +505,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		return result;
 	}
 
-	// Rerturns the closest unit of the given conditions
+	// Returns the closest unit of the given conditions
 	private Unit findClosestUnit(int x, int y, UnitConditions conditions) {
 		int closestDistance = Integer.MAX_VALUE;
 		Unit closestUnit = null;
@@ -336,6 +550,54 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		return bestUnit;
 	}
 
+	// Returns the direction of the safest tile next to the position
+	private int findSafestNeighbour(int x, int y, int duration) {
+		int safestDangerLevel = Integer.MAX_VALUE;  // 'dangerLevel' is determined by 'how quickly could you die by standing in this spot'
+		int safestTile = UnitAction.DIRECTION_DOWN;
+		
+		// Iterate every neighbouring tile
+		for (int i = 0; i < 4; i++) {
+			int targetX = x + UnitAction.DIRECTION_OFFSET_X[i], targetY = y + UnitAction.DIRECTION_OFFSET_Y[i];
+			// Skip if we can't move here
+			if (targetX >= pgs.getWidth() || targetX < 0 || targetY >= pgs.getHeight() || targetY < 0 || !gs.free(targetX, targetY)) {
+				continue;
+			}
+			
+			int dangerLevel = getDangerLevel(x, y, duration);
+			
+			if (dangerLevel < safestDangerLevel) {
+				safestDangerLevel = dangerLevel;
+				safestTile = i;
+			}
+		}
+		
+		// Return the direction
+		return safestTile;
+	}
+	
+	// Returns how much damage you could receive from being on a specific tile, assuming one bot attacked it
+	private int getDangerLevel(int x, int y, int duration) {
+		int danger = 0;
+		
+		for (Unit u : gs.getUnits()) {
+			if (u.getPlayer() != playerId && u.getType().canAttack) {
+				// Check how long it would take to get here
+				int distance = distance(getUnitX(u, duration), getUnitY(u, duration), x, y);
+				int timeToArrive = Math.max(distance - u.getType().attackRange, 0) * u.getType().moveTime;
+				
+				// Let the unit finish its current action first
+				timeToArrive += timeToFinishAction(u);
+				
+				// Update the danger level
+				if (timeToArrive < duration) {
+					danger = Math.max(danger, (duration - timeToArrive) / u.getAttackTime() * u.getType().maxDamage);
+				}
+			}
+		}
+		
+		return danger;
+	}
+	
 	// Returns the number of units meeting the specified conditions
 	private int countMyUnits(UnitConditions conditions) {
 		int count = 0;
@@ -347,15 +609,6 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		}
 
 		return count;
-	}
-
-	// attacking worker:
-	// pick a target to attack
-	// but attack anything along the way, or avoid them for a limited time (if chase
-	// is detected, maybe stall them?
-
-	private void debug(String text) {
-		System.out.print(text + "\n");
 	}
 
 	// Returns the time it takes for a unit to reach another unit, assuming the
@@ -375,22 +628,89 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		return unitDistance(source, destinationX, destinationY) * source.getType().moveTime;
 	}
 
-	// Returns the distance between two units, in the number of steps it would take
-	// to reach
+	// Returns the distance between two locations
+	private int distance(int aX, int aY, int bX, int bY) {
+		return Math.abs(aX - bX) + Math.abs(aY - bY);
+	}
+	
+	// Returns the distance between two units, in the number of steps it would take to reach
 	private int unitDistance(Unit a, Unit b) {
 		return Math.abs(a.getX() - b.getX()) + Math.abs(a.getY() - b.getY());
 	}
 
-	// Returns the distance between a unit and a position
+	// Returns the distance between a unit and a position, in the number of steps it would take to reach
 	private int unitDistance(Unit a, int x, int y) {
 		return Math.abs(a.getX() - x) + Math.abs(a.getY() - y);
 	}
 	
+	// Returns the unit's current action, or null if there is no active action assigned
+	private UnitAction getUnitAction(Unit u) {
+		UnitActionAssignment assignment = gs.getActionAssignment(u);
+		
+		return assignment != null ? assignment.action : null;
+	}
+	
+	// Returns the X position of a unit after the given time period
+	private int getUnitX(Unit u, int period) {
+		UnitAction action = getUnitAction(u);
+		
+		if (action != null && action.getType() == UnitAction.TYPE_MOVE) {
+			return u.getX() + UnitAction.DIRECTION_OFFSET_X[action.getDirection()];
+		} else {
+			return u.getX();	
+		}
+	}
+	
+	// Returns the Y position of a unit after the given time period
+	private int getUnitY(Unit u, int period) {
+		UnitAction action = getUnitAction(u);
+		
+		if (action != null && action.getType() == UnitAction.TYPE_MOVE) {
+			return u.getY() + UnitAction.DIRECTION_OFFSET_Y[action.getDirection()];
+		} else {
+			return u.getY();	
+		}
+	}
+	
+	// Returns how long it would take for a unit to finish its current action
 	private int timeToFinishAction(Unit u) {
 		if (gs.getActionAssignment(u) == null) {
 			return 0;
 		}
 		
 		return gs.getActionAssignment(u).action.ETA(u) - (gs.getTime() - gs.getActionAssignment(u).time);
+	}
+
+	// ========== Debugging functions ==========
+	// Prints a debug message
+	private void debug(String text) {
+		System.out.print(text + "\n");
+	}
+	
+	// pauses the simulation, only affects custom GameVisualSimulationTest
+	public void pause() {
+		isPaused = true;
+
+		debug("Paused");
+	}
+	
+	// Pauses the simulation, displaying a custom pause message
+	public void pause(String pauseMessage) {
+		isPaused = true;
+
+		debug(pauseMessage);
+	}
+	
+	public void unpause() {
+		isPaused = false;
+	}
+	
+	public boolean isPaused() {
+		return isPaused;
+	}
+	
+	// Returns the unit label hashmap
+	public HashMap<Unit, String> getUnitLabels() {
+		return unitLabels;
 	}
 }

@@ -47,7 +47,7 @@ public class TrainWithPreferredTile extends AbstractAction {
     
     public boolean equals(Object o)
     {
-        if (!(o instanceof Train)) return false;
+        if (!(o instanceof TrainWithPreferredTile)) return false;
         TrainWithPreferredTile a = (TrainWithPreferredTile)o;
         if (type != a.type) return false;
         
@@ -57,12 +57,12 @@ public class TrainWithPreferredTile extends AbstractAction {
     
     public void toxml(XMLWriter w)
     {
-        w.tagWithAttributes("Train","unitID=\""+unit.getID()+"\" type=\""+type.name+"\"");
-        w.tag("/Train");
+        w.tagWithAttributes("TrainWithPreferredTile","unitID=\""+unit.getID()+"\" type=\""+type.name+"\" targetX=\""+targetX+"\" targetY=\""+targetY+"\"");
+        w.tag("/TrainWithPreferredTile");
     }     
     
     public UnitAction execute(GameState gs, ResourceUsage ru) {
-        // Find the closest free direction to train the unit
+        // Find a free spot closest to the desired direction
         int closestDistance = Integer.MAX_VALUE;
         int closestDirection = -1;
         
@@ -70,14 +70,13 @@ public class TrainWithPreferredTile extends AbstractAction {
         	int currentDistance = distance(unit.getX() + UnitAction.DIRECTION_OFFSET_X[i], unit.getY() + UnitAction.DIRECTION_OFFSET_Y[i], targetX, targetY);
         	
         	// check if this is the closest place to spawn
-        	if (currentDistance < closestDistance
-        			&& gs.free(unit.getX() + UnitAction.DIRECTION_OFFSET_X[i], unit.getY() + UnitAction.DIRECTION_OFFSET_Y[i])) {
+        	if (currentDistance < closestDistance && gs.free(unit.getX() + UnitAction.DIRECTION_OFFSET_X[i], unit.getY() + UnitAction.DIRECTION_OFFSET_Y[i])) {
         		closestDistance = currentDistance;
         		closestDirection = i;
         	}
         }
         
-        
+        // Train the unit here!
         if (closestDirection != -1) {
         	UnitAction action = new UnitAction(UnitAction.TYPE_PRODUCE, closestDirection, type);
         	if (gs.isUnitActionAllowed(unit, action)) {

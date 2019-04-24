@@ -18,8 +18,10 @@ import gui.PhysicalGameStatePanel;
 
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
+import java.awt.event.WindowEvent;
 import java.io.OutputStreamWriter;
 import javax.swing.JFrame;
+import java.awt.event.WindowListener;
 import rts.GameState;
 import rts.PhysicalGameState;
 import rts.PlayerAction;
@@ -30,48 +32,70 @@ import util.XMLWriter;
  *
  * @author santi
  */
-public class GameVisualSimulationTest implements KeyListener {
+public class GameVisualSimulationTest implements KeyListener, WindowListener {
 	private boolean fastForward;
 	private boolean pause;
 	private boolean slowDown;
+	
+	private boolean gameover = false;
 	
 	public GameVisualSimulationTest() throws Exception {
         UnitTypeTable utt = new UnitTypeTable();
         //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/8x8/bases8x8.xml", utt);
         //PhysicalGameState pgs = MapGenerator.basesWorkers8x8Obstacle();
-        PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/12x12/basesWorkers12x12.xml", utt);
-        //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/24x24/basesWorkers24x24.xml", utt);
+        //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/12x12/basesWorkers12x12.xml", utt);
+        PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/24x24/basesWorkers24x24.xml", utt);
 
         GameState gs = new GameState(pgs, utt);
         int MAXCYCLES = 5000;
         int PERIOD = 20;
-        boolean gameover = false;
         
         //AI ai1 = new WorkerRush(utt, new BFSPathFinding());
         AI ai1 = new MyDisappointingRoboticSon(utt);
-        AI ai2 = new WorkerRush(utt);
+        //AI ai2 = new WorkerRush(utt);
+        AI ai2 = new LightRush(utt);
 
         JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
 //        JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_WHITE);
-
-        w.addKeyListener(this);
+       
+        // Make the world easier for myself, Louis, the almighty creator of the finest and highly tested robots.
+        w.addWindowListener(this); // let me close the window without it still running!
+        w.addKeyListener(this);    // let me fast-forward, slow down, and pause the game!
+        PhysicalGameStatePanel.unitLabels = ((MyDisappointingRoboticSon)ai1).getUnitLabels();
         
         long nextTimeToUpdate = System.currentTimeMillis() + PERIOD;
+        boolean doFrameStep = false;
         do{
+        	// Control simulation speed (fast-forward/slow)
             int speed = PERIOD;
             
             if (slowDown) {
             	speed *= 3;
             }
+            
             if (fastForward) {
             	speed /= 3;
-            }
-            if (pause) {
-            	speed = 0;
+            } else {
+            	doFrameStep = false;
             }
             
+            if (pause || ((MyDisappointingRoboticSon)ai1).isPaused()) {
+            	speed = 0;
+            	
+            	if (pause) {
+            		((MyDisappointingRoboticSon)ai1).unpause();
+            	}
+            	
+            	// Advance one frame if right key is pressed
+            	if (fastForward && !doFrameStep) {
+            		doFrameStep = true;
+            		speed = 1;
+            	}
+            }
+            
+            // Simulate!
             if (System.currentTimeMillis()>=nextTimeToUpdate) {
-            	if (!pause) {
+            	if (speed != 0) {
 	                PlayerAction pa1 = ai1.getAction(0, gs);
 	                PlayerAction pa2 = ai2.getAction(1, gs);
 	                gs.issueSafe(pa1);
@@ -134,6 +158,47 @@ public class GameVisualSimulationTest implements KeyListener {
 
 	@Override
 	public void keyTyped(KeyEvent arg0) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void windowActivated(WindowEvent arg0) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void windowClosed(WindowEvent arg0) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void windowClosing(WindowEvent arg0) {
+		gameover = true;
+	}
+
+	@Override
+	public void windowDeactivated(WindowEvent arg0) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void windowDeiconified(WindowEvent arg0) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void windowIconified(WindowEvent arg0) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void windowOpened(WindowEvent arg0) {
 		// TODO Auto-generated method stub
 		
 	}    
