@@ -1,8 +1,20 @@
 package utilities;
 
+import rts.GameState;
 import rts.units.Unit;
 
 public class MapUtils {
+	/**
+	 * \brief Converts a coordinate pair to a position
+	 * \param x the X position to convert
+	 * \param y the Y position to convert
+	 * \param gs the current GameState
+	 * \return the combined XY position value
+	 */
+	public static int coordsToPosition(int x, int y, GameState gs) {
+		return x + y * gs.getPhysicalGameState().getWidth();
+	}
+	
 	/**
 	 * \brief Returns the time it takes for a unit to reach another unit, assuming the other unit doesn't move
 	 * \param source the source unit

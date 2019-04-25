@@ -6,7 +6,9 @@ import ai.abstraction.Attack;
 import ai.abstraction.Build;
 import ai.abstraction.Harvest;
 import ai.abstraction.Move;
+import ai.abstraction.Train;
 import ai.abstraction.pathfinding.AStarPathFinding;
+import ai.abstraction.pathfinding.PathFinding;
 import ai.core.AI;
 import ai.core.ParameterSpecification;
 import extra_abstractions.DoNothing;
@@ -45,6 +47,8 @@ public class UnitThinker {
     
     private AbstractAction action; /**< The action to perform at the end of the tick */
     
+    private GameState gameState; /**< The gamestate as of the last tick */
+    
     @FunctionalInterface
     public interface StrategyFunc {
     	void invoke();
@@ -59,8 +63,16 @@ public class UnitThinker {
     	this.units = units;
     }
     
-    public void tick() {
-    	// Do the currently assigned strategy
+    public void tick(GameState gs) {
+    	// Update state variables
+    	gameState = gs;
+    	
+    	// Do nothing by default
+    	if (bot.getUnitAction(unit) == null) {
+    		action = new DoNothing(unit, 1);
+    	}
+    	
+    	// Try the assigned strategy
     	strategy.invoke();
     }
     
@@ -105,7 +117,7 @@ public class UnitThinker {
 					}
 
 					// Begin the journey of a thousand tiles
-					action = new Move(unit, neighbourPositions[closestPositionIndex * 2], neighbourPositions[closestPositionIndex * 2 + 1], bot.getPathFinding());
+					moveSafely(neighbourPositions[closestPositionIndex * 2], neighbourPositions[closestPositionIndex * 2 + 1], 1, 2);
 				} else {
 					// We're next to a base! Drop our shizzle here
 					action = new Harvest(unit, closestResource, closestBase, bot.getPathFinding());
@@ -315,13 +327,14 @@ public class UnitThinker {
 			return;
 		}
 		
+		// Charge at the closest enemy!
 		Unit closestEnemy = bot.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
 		
 		if (dodgeStrategy(closestEnemy)) {
 			DebugUtils.setUnitLabel(unit, "Basic: Dodging!");
-		} else {
+		} else if (closestEnemy != null) {
 			DebugUtils.setUnitLabel(unit, "Basic: Charrge!");
-			action = new Attack(unit, closestEnemy, bot.getPathFinding());
+			moveSafely(closestEnemy.getX(), closestEnemy.getY(), 1, 2);
 		}
 	}
 	
@@ -340,7 +353,47 @@ public class UnitThinker {
 	}
 	
 	public void baseProduceRusherStrategy() {
-		action = new TrainWithPreferredTile(unit, units.worker, 10, 10);
+		// Train a unit closest to the closest enemy
+		Unit closestEnemy = bot.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
+		
+		if (closestEnemy != null) {
+			action = new TrainWithPreferredTile(unit, units.worker, closestEnemy.getX(), closestEnemy.getY());	
+		} else {
+			// OK....uh, train a unit wherever then.
+			action = new Train(unit, units.worker);
+		}
+		
+	}
+	
+	/**
+	 * \brief Moves to a position with no risk of being killed
+	 * \param targetX the X position of the target
+	 * \param targetY the Y position of the target
+	 * \param range how close to the target do we want to get
+	 * \param maxWaitTime how long will we wait for a tile to become safe before we take another?
+	 */
+	public void moveSafely(int targetX, int targetY, int range, int maxWaitTime) {
+		if (bot.getUnitAction(unit) == null) {
+			// todo rewrite the entire A* algorithm to avoid dangerous tiles
+			// Get a path to the target
+			ResourceUsage ru = new ResourceUsage();
+			UnitAction moveAction = bot.getPathFinding().findPathToPositionInRange(unit, MapUtils.coordsToPosition(targetX, targetY, gameState), range, gameState, ru);
+			
+			// Make sure we're going somewhere!
+			if (moveAction == null || moveAction.getType() != UnitAction.TYPE_MOVE) {
+				return;
+			}
+			
+			// Ensure the next step is not a dangerous tile
+			int dangerLevel = bot.getDangerLevel(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
+												 unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], unit.getType().moveTime);
+			
+			// Print its danger level
+			DebugUtils.setUnitLabel(unit, "Danger level of next position: " + dangerLevel);
+			
+			// Step anyway
+			action = new Step(unit, moveAction.getDirection());
+		}
 	}
 	
 	// AttackVulnerableNeighbourStrategy

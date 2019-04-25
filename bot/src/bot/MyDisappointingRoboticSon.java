@@ -190,15 +190,21 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		
 		// Tick the thinkers
 		for (Unit key : unitThinkers.keySet()) {
-			unitThinkers.get(key).tick();
+			unitThinkers.get(key).tick(gs);
 			
 			actions.put(key, unitThinkers.get(key).getAction());
 		}
 		
 		// Assign empty actions to units which do not have any action
 		for (Unit u : pgs.getUnits()) {
-			if (u.getPlayer() == playerId && getUnitAction(u) == null && (!actions.containsKey(u) || actions.get(u).completed(gs))) {
-				actions.put(u, new DoNothing(u, 1));
+			try {
+				if (u.getPlayer() == playerId && getUnitAction(u) == null && (!actions.containsKey(u) || actions.get(u).completed(gs))) {
+					actions.put(u, new DoNothing(u, 1));
+				}
+			}
+			catch(Exception e) {
+				String crap = e.getMessage();
+				DebugUtils.print("Exception: " + crap);
 			}
 		}
 
@@ -318,18 +324,35 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		return safestTile;
 	}
 	
-	// Returns how much damage you could receive from being on a specific tile, assuming one bot attacked it
-	public int getDangerLevel(int x, int y, int duration) {
+	// Returns how long it would take to receive a certain amount of damage at the given tile, if every enemy unit attacked
+	public int getDangerTime(int x, int y, int damageAmount) {
+		if (damageAmount == 0) {
+			return Integer.MAX_VALUE;
+		}
+		
 		int danger = 0;
 		
 		for (Unit u : gs.getUnits()) {
 			if (u.getPlayer() != playerId && u.getType().canAttack) {
-				// Check how long it would take to get here
-				int distance = MapUtils.distance(getUnitX(u, duration), getUnitY(u, duration), x, y);
-				int timeToArrive = Math.max(distance - u.getType().attackRange, 0) * u.getType().moveTime;
+				int currentTimePassed = 0;
+				int enemyX = u.getX(), enemyY = u.getY();
+				int timeToFinishCurrentAction = timeToFinishAction(u);
 				
-				// Let the unit finish its current action first
-				timeToArrive += timeToFinishAction(u);
+				if (timeToFinishCurrentAction > 0) {
+					// Simulate enemy movement if necessary
+					UnitAction enemyAction = getUnitAction(u);
+					
+					if (enemyAction.getType() == UnitAction.TYPE_MOVE) {
+						enemyX += UnitAction.DIRECTION_OFFSET_X[enemyAction.getDirection()];
+						enemyY += UnitAction.DIRECTION_OFFSET_Y[enemyAction.getDirection()];
+					}
+					
+					currentTimePassed += timeToFinishCurrentAction;
+				}
+				
+				// Check how long it would take to get in range of the player
+				int distance = MapUtils.distance(enemyX, enemyY, x, y);
+				int timeToArrive = Math.max(distance - u.getType().attackRange, 0) * u.getType().moveTime;
 				
 				// Update the danger level
 				if (timeToArrive < duration) {
