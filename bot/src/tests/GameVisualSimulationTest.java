@@ -53,8 +53,8 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
         
         //AI ai1 = new WorkerRush(utt, new BFSPathFinding());
         AI ai1 = new MyDisappointingRoboticSon(utt);
-        //AI ai2 = new WorkerRush(utt);
-        AI ai2 = new LightRush(utt);
+        AI ai2 = new WorkerRush(utt);
+        //AI ai2 = new LightRush(utt);
 
         JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
 //        JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_WHITE);
@@ -79,13 +79,20 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
             } else {
             	doFrameStep = false;
             }
+
+            // Toggle pause
+        	if (pause) {
+        		if (DebugUtils.isPaused()) {
+        			DebugUtils.unpause();
+        		} else {
+        			DebugUtils.pause();
+        		}
+        		
+        		pause = false;
+        	}
             
-            if (pause || DebugUtils.isPaused()) {
+            if (DebugUtils.isPaused()) {
             	speed = 0;
-            	
-            	if (pause) {
-            		DebugUtils.unpause();
-            	}
             	
             	// Advance one frame if right key is pressed
             	if (fastForward && !doFrameStep) {

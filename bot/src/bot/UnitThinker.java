@@ -22,6 +22,7 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.Callable;
@@ -72,8 +73,19 @@ public class UnitThinker {
     		action = new DoNothing(unit, 1);
     	}
     	
+    	
+    	
     	// Try the assigned strategy
+    	HashMap<Unit, String> l = DebugUtils.getUnitLabels();
+    	for (Unit k : l.keySet()) {
+    		DebugUtils.setUnitLabel(k,  "");
+    	}
+    	
     	strategy.invoke();
+    	
+    	DebugUtils.setUnitLabel(unit, (l.containsKey(unit) ? l.get(unit) : "") + " nochg: " + 
+    	bot.getDangerTime(bot.getUnitX(unit, unit.getMoveTime()), bot.getUnitY(unit, unit.getMoveTime()), 1) + "; chg: " + 
+    	bot.getDangerTimeAssumingEnemiesCharge(bot.getUnitX(unit, unit.getMoveTime()), bot.getUnitY(unit, unit.getMoveTime()), 1, unit.getMoveTime()));
     }
     
     /**
@@ -249,25 +261,23 @@ public class UnitThinker {
 	}*/
 	
 	// Dodges nearby attacks with a delay ('hopeful attack period')
-	// if enemyToDodge is null, the nearest enemy will be identified and dodged
+	// if enemyToDodge is null, all nearby enemies will be dodged
 	// if enemyToDodge is out of range, nothing will happen
 	// The strategy automatically attacks enemies that are likely to kill the player
 	// The dodgeStrategy will either override other strategies or leave them untouched
 	public boolean dodgeStrategy(Unit enemyToDodge) {
-		if (enemyToDodge == null) {
-			// Decide an enemy to dodge
-			return false; // todo
-		}
-		
 		// Can we act now?
 		if (bot.getUnitAction(unit) != null) {
 			return false; // can't do anything yet
 		}
 
+		int danger = bot.getDangerTime(unit.getX(), unit.getY(), 1);
+		
 		// Dodge the enemy if a) they are about to move next to us and b) we have time to run
 		int enemyTimeTilMove = bot.timeToFinishAction(enemyToDodge);
 		
-		if (enemyTimeTilMove < unit.getMoveTime() - 1 && enemyTimeTilMove + enemyToDodge.getAttackTime() > unit.getMoveTime()) {
+		if ((enemyToDodge != null && enemyTimeTilMove < unit.getMoveTime() - 1 && enemyTimeTilMove + enemyToDodge.getAttackTime() > unit.getMoveTime())
+				|| (enemyToDodge == null && bot.getDangerTime(unit.getX(), unit.getY(), 1) < unit.getMoveTime() + 1)) {
 			// Run to a safe neighbouring tile
 			int runDirection = bot.findSafestNeighbour(unit.getX(), unit.getY(), unit.getMoveTime());
 			
@@ -278,13 +288,13 @@ public class UnitThinker {
 		{
 			// We either haven't encountered an enemy yet, or we can't move in time to escape. Eye for an eye, find nearby enemies to attack
 			// Don't attack them if they're about to run away. We ain't gonna get outplayed by our own strategy!
-			return attackDangerousNeighbourStrategy();
+			return attackNeighbourStrategy(false);
 		}
 	}
 	
 	// Attacks any enemies that could kill this unit before this unit can run
 	// todo: ranged unit support
-	public boolean attackDangerousNeighbourStrategy() {
+	public boolean attackNeighbourStrategy(boolean onlyIfDangerous) {
 		if (bot.getUnitAction(unit) != null) {
 			return false;
 		}
@@ -298,7 +308,8 @@ public class UnitThinker {
 			int enemyX = bot.getUnitX(enemy, unit.getMoveTime()), enemyY = bot.getUnitY(enemy, unit.getMoveTime()); 
 			
 			// Check if this enemy could attack us here before we can run
-			if (MapUtils.distance(unit, enemyX, enemyY) <= enemy.getAttackRange() && bot.timeToFinishAction(enemy) + enemy.getAttackTime() <= unit.getMoveTime()) {
+			if (!onlyIfDangerous || 
+				  (MapUtils.distance(unit, enemyX, enemyY) <= enemy.getAttackRange() && bot.timeToFinishAction(enemy) + enemy.getAttackTime() <= unit.getMoveTime())) {
 				// It's officially unsafe to run (assuming the enemy attacks us)
 				isInDanger = true;
 				
@@ -330,10 +341,10 @@ public class UnitThinker {
 		// Charge at the closest enemy!
 		Unit closestEnemy = bot.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
 		
-		if (dodgeStrategy(closestEnemy)) {
-			DebugUtils.setUnitLabel(unit, "Basic: Dodging!");
-		} else if (closestEnemy != null) {
-			DebugUtils.setUnitLabel(unit, "Basic: Charrge!");
+		/*if (dodgeStrategy(null)) {
+			DebugUtils.setUnitLabel(unit, "Dodge strat!");
+			return;
+		} else*/ if (closestEnemy != null) {
 			moveSafely(closestEnemy.getX(), closestEnemy.getY(), 1, 2);
 		}
 	}
@@ -379,24 +390,43 @@ public class UnitThinker {
 			ResourceUsage ru = new ResourceUsage();
 			UnitAction moveAction = bot.getPathFinding().findPathToPositionInRange(unit, MapUtils.coordsToPosition(targetX, targetY, gameState), range, gameState, ru);
 			
-			// Make sure we're going somewhere!
+			// Make sure we have somewhere to go!
 			if (moveAction == null || moveAction.getType() != UnitAction.TYPE_MOVE) {
 				return;
 			}
 			
 			// Ensure the next step is not a dangerous tile
-			int dangerLevel = bot.getDangerLevel(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
-												 unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], unit.getType().moveTime);
-			
-			// Print its danger level
-			DebugUtils.setUnitLabel(unit, "Danger level of next position: " + dangerLevel);
-			
-			// Step anyway
-			action = new Step(unit, moveAction.getDirection());
+			int dangerTime = bot.getDangerTime(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
+											   unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], 1);
+
+			dangerTime = bot.getDangerTimeAssumingEnemiesCharge(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
+					   unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], 1, unit.getMoveTime());
+
+			if (dangerTime > unit.getMoveTime() * 2) {
+				// If we can move to AND escape the tile unharmed, it's safe
+				DebugUtils.setUnitLabel(unit, "[moveSafely] Moving normally " + dangerTime);
+				action = new Step(unit, moveAction.getDirection());	
+			} else if (dangerTime > unit.getMoveTime() && attackVulnerableEnemyStrategy()) {
+				// If we have time to move into the tile, see if there's a vulnerable enemy that we could hit-and-miss
+				DebugUtils.setUnitLabel(unit, "[moveSafely] Attack vulnerable dude " + dangerTime);
+			} else {
+				// todo: take a preferred tile with a directional bias
+				DebugUtils.setUnitLabel(unit, "[moveSafely] Safest neighbour " + dangerTime);
+				
+				// Consider waiting for a while. When time has expired, move somewhere else I guess!
+				action = new Step(unit, bot.findSafestNeighbour(unit.getX(), unit.getY(), 1));
+			}
 		}
 	}
 	
 	// AttackVulnerableNeighbourStrategy
+	public boolean attackVulnerableEnemyStrategy() {
+		// Find an enemy that would be vulnerable if they are a charger
+		List<Unit> enemies = bot.findUnits((Unit u) -> units.isEnemy(u) && MapUtils.distance(u,  unit) == 2);
+		action = new DoNothing(unit, 1);
+		DebugUtils.setUnitLabel(unit, "Looking for vulnerable dudes");
+		return true;
+	}
 	
 	// Do a tree search to find an optimal direction to run away
 	public void scoobyShaggyStrategy() {

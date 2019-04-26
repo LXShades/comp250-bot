@@ -299,23 +299,30 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		return bestUnit;
 	}
 
-	// Returns the direction of the safest tile next to the position
-	public int findSafestNeighbour(int x, int y, int duration) {
-		int safestDangerLevel = Integer.MAX_VALUE;  // 'dangerLevel' is determined by 'how quickly could you die by standing in this spot'
+	/**
+	 * Returns the direction of the safest tile next to the position
+	 * \param x the X coordinate of the position
+	 * \param y the Y coordinate of the position
+	 * \param damageAmount the amount of damage could be taken before a tile is considered dangerous (todo remove?)
+	 * \return The safest neighbour for a unit to take
+	 */
+	public int findSafestNeighbour(int x, int y, int damageAmount) {
+		int safestDangerTime = Integer.MIN_VALUE;  // 'dangerLevel' is determined by 'how quickly could you die by standing in this spot'
 		int safestTile = UnitAction.DIRECTION_DOWN;
 		
 		// Iterate every neighbouring tile
 		for (int i = 0; i < 4; i++) {
 			int targetX = x + UnitAction.DIRECTION_OFFSET_X[i], targetY = y + UnitAction.DIRECTION_OFFSET_Y[i];
+			
 			// Skip if we can't move here
 			if (targetX >= pgs.getWidth() || targetX < 0 || targetY >= pgs.getHeight() || targetY < 0 || !gs.free(targetX, targetY)) {
 				continue;
 			}
 			
-			int dangerLevel = getDangerLevel(x, y, duration);
+			int dangerLevel = getDangerTime(targetX, targetY, damageAmount);
 			
-			if (dangerLevel < safestDangerLevel) {
-				safestDangerLevel = dangerLevel;
+			if (dangerLevel > safestDangerTime) {
+				safestDangerTime = dangerLevel;
 				safestTile = i;
 			}
 		}
@@ -323,18 +330,23 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		// Return the direction
 		return safestTile;
 	}
-	
-	// Returns how long it would take to receive a certain amount of damage at the given tile, if every enemy unit attacked
+
+	/**
+	 * Returns how quickly it would take to receive a certain amount of damage at the given tile, if every enemy unit attacked
+	 * \param x the X coordinate of the position
+	 * \param y the Y coordinate of the position
+	 * \param damageAmount the amount of damage could be taken before a tile is considered dangerous
+	 * \return The shortest time that this tile could be attacked by an enemy to the amount 'damageAmount'
+	 */
 	public int getDangerTime(int x, int y, int damageAmount) {
 		if (damageAmount == 0) {
 			return Integer.MAX_VALUE;
 		}
 		
-		int danger = 0;
+		int dangerTime = Integer.MAX_VALUE;
 		
 		for (Unit u : gs.getUnits()) {
 			if (u.getPlayer() != playerId && u.getType().canAttack) {
-				int currentTimePassed = 0;
 				int enemyX = u.getX(), enemyY = u.getY();
 				int timeToFinishCurrentAction = timeToFinishAction(u);
 				
@@ -346,22 +358,65 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 						enemyX += UnitAction.DIRECTION_OFFSET_X[enemyAction.getDirection()];
 						enemyY += UnitAction.DIRECTION_OFFSET_Y[enemyAction.getDirection()];
 					}
-					
-					currentTimePassed += timeToFinishCurrentAction;
 				}
 				
 				// Check how long it would take to get in range of the player
 				int distance = MapUtils.distance(enemyX, enemyY, x, y);
-				int timeToArrive = Math.max(distance - u.getType().attackRange, 0) * u.getType().moveTime;
+				int timeToTravel = Math.max(distance - u.getType().attackRange, 0) * u.getType().moveTime;
 				
 				// Update the danger level
-				if (timeToArrive < duration) {
-					danger = Math.max(danger, (duration - timeToArrive) / u.getAttackTime() * u.getType().maxDamage);
+				dangerTime = Math.min(dangerTime, timeToFinishCurrentAction + timeToTravel + damageAmount * u.getType().attackTime);   
+			}
+		}
+		
+		return dangerTime;
+	}
+	
+	/**
+	 * \brief Returns how quickly it would take to receive a certain amount of damage at the given tile, if every enemy unit attacked. This assumes that enemies will either attack or move to another tile, but never wait.
+	 * \param x the X coordinate of the position
+	 * \param y the Y coordinate of the position
+	 * \param arrivalTime the time it would take for an allied unit to arrive at the position
+	 * \param damageAmount the amount of damage could be taken before a tile is considered dangerous
+	 * \return The shortest time that this tile could be attacked by an enemy to the amount 'damageAmount'
+	 */
+	public int getDangerTimeAssumingEnemiesCharge(int x, int y, int damageAmount, int arrivalTime) {
+		if (damageAmount == 0) {
+			return Integer.MAX_VALUE;
+		}
+		
+		int dangerTime = Integer.MAX_VALUE;
+		
+		for (Unit u : gs.getUnits()) {
+			if (u.getPlayer() != playerId && u.getType().canAttack) {
+				int enemyX = u.getX(), enemyY = u.getY();
+				int timeToFinishCurrentAction = timeToFinishAction(u);
+				
+				if (timeToFinishCurrentAction > 0) {
+					// Simulate enemy movement if necessary
+					UnitAction enemyAction = getUnitAction(u);
+					
+					if (enemyAction.getType() == UnitAction.TYPE_MOVE) {
+						enemyX += UnitAction.DIRECTION_OFFSET_X[enemyAction.getDirection()];
+						enemyY += UnitAction.DIRECTION_OFFSET_Y[enemyAction.getDirection()];
+					}
+				}
+				
+				// Check how long it would take to get in range of the player
+				int distance = MapUtils.distance(enemyX, enemyY, x, y);
+				int timeToTravel = Math.max(distance - u.getType().attackRange, 0) * u.getType().moveTime;
+				
+				if ((timeToTravel + timeToFinishCurrentAction) % arrivalTime == 0) {
+					// We expect the arrival time of the enemy to be in sync with the arrival time of our unit
+					dangerTime = Math.min(dangerTime, timeToFinishCurrentAction + timeToTravel + damageAmount * u.getType().attackTime);
+				} else {
+					// We expect the enemy will rush past and need to turn back
+					dangerTime = Math.min(dangerTime, timeToFinishCurrentAction + timeToTravel + u.getType().moveTime + damageAmount * u.getType().attackTime);
 				}
 			}
 		}
 		
-		return danger;
+		return dangerTime;
 	}
 	
 	// Returns the number of units meeting the specified conditions
