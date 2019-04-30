@@ -36,19 +36,26 @@ import utilities.MapUtils;
 import utilities.UnitUtils;
 
 /**
- * @author User
+ * \brief A UnitThinker is associated with each unit when the unit is created. They contain various strategies that any unit can use.
+ * \author Louis
+ * 
+ * The action of each unit at the end of a compatible bot's turn is to execute the 'action' parameter. This can be changed at any time.
+ * Strategy functions are postfixed with 'Strategy', which indicates that the 'action' parameter will be set
+ * Some Strategy functions will return false if the strategy can't and/or hasn't been applied
+ * This is grounds for choosing another strategy.
+ * Strategies can safely call other strategies with this system.
  * 
  */
 public class UnitThinker {
     private Unit unit; /**< The Unit associated with this thinker */
     
-    private UnitUtils units;
+    private UnitUtils units; /**< The UnitUtils associated with the player controlling this thinker */
     
     private AbstractAction action; /**< The action to perform at the end of the tick */
     
-    private GameState gameState; /**< The gamestate as of the last tick */
+    private GameState gameState; /**< The GameState as of the last tick */
     
-    private PathFinding pathFinding; /**< The pathfinding engine to be used with this thinker */
+    private PathFinding pathFinding; /**< The default PathFinding engine to be used with this thinker */
     
     @FunctionalInterface
     public interface StrategyFunc {
@@ -91,10 +98,6 @@ public class UnitThinker {
     	}*/
     	
     	strategy.invoke();
-    	
-    	/*DebugUtils.setUnitLabel(unit, (l.containsKey(unit) ? l.get(unit) : "") + "d: " + 
-    	MapUtils.getDangerTime(units.getXAfter(unit, unit.getMoveTime()), units.getYAfter(unit, unit.getMoveTime()), 1, units) + "; chg: " + 
-    	MapUtils.getDangerTimeAssumingEnemiesCharge(units.getXAfter(unit, unit.getMoveTime()), units.getYAfter(unit, unit.getMoveTime()), 1, unit.getMoveTime(), units));*/
     }
     
     /**
@@ -163,7 +166,77 @@ public class UnitThinker {
 	public void workerBuildBarracksStrategy() {
 		// Only build if we're not already building/doing something
 		if (units.getAction(unit) == null) {
-			action = new Build(unit, units.barracks, unit.getX(), unit.getY(), pathFinding);
+			List<Unit> bases = units.findUnits((Unit u) -> units.isBase(u));
+			Unit base = bases.size() > 0 ? bases.get(0) : null;
+			GameState gs = units.getGameState();
+			PhysicalGameState pgs = gs.getPhysicalGameState();
+			int buildX = unit.getX(), buildY = unit.getY();
+			
+			// Decide where to build the barracks
+			if (base != null) {
+				// Build the barracks in a safe place meeting the following conditions:
+				// 1) at least 2 tiles away from the base
+				// 2) at least 2 tiles away from resources (let's ignore this for now to make this easier plz)
+				// 3) far from approaching enemies (let's ignore this because actually 
+				
+				Unit closestEnemyAttacker = units.findClosestUnit(base.getX(), base.getY(), (Unit u) -> (units.isEnemy(u) && u.getType().canAttack)); 
+				int avoidX = pgs.getWidth() / 2, avoidY = pgs.getHeight() / 2;
+				int bestTile = -1;
+				int bestTileHeuristic = 0;
+				
+				if (closestEnemyAttacker != null) {
+					// Maximise distance to the closest threatening enemy
+					avoidX = closestEnemyAttacker.getX();
+					avoidY = closestEnemyAttacker.getY();
+				}
+				
+				// Check tiles in a square
+				for (int line = -2; line <= 2; line++) {
+					for (int side = 0; side < 4; side++) {
+						// Retrieve this part of the square
+						int tileX, tileY;
+						
+						switch (side) {
+							case 0:
+								tileX = base.getX() + line; tileY = base.getY() - 2;
+								break;
+							case 1:
+								tileX = base.getX() + line; tileY = base.getY() + 2;
+								break;
+							case 2:
+								tileX = base.getX() - 2; tileY = base.getY() ;
+								break;
+							case 3:
+							default:
+								tileX = base.getX() + 2; tileY = base.getY();
+								break;
+						}
+						
+						// Check we can go there first
+						if (!MapUtils.tileIsFree(tileX, tileY, gs)) {
+							continue;
+						}
+						
+						// Measure the distance to the avoid position
+						int avoidDistance = MapUtils.distance(tileX,  tileY, avoidX, avoidY);
+						
+						// Pick the farthest one
+						if (avoidDistance > bestTileHeuristic || bestTile == -1) {
+							bestTile = MapUtils.toPosition(tileX, tileY, gs);
+							bestTileHeuristic = avoidDistance;
+						}
+					}
+				}
+				
+				// Select the best tile
+				if (bestTile != -1) {
+					buildX = MapUtils.toX(bestTile, gs);
+					buildY = MapUtils.toY(bestTile, gs);
+				}
+			}
+			
+			// Build the barracks
+			action = new Build(unit, units.barracks, buildX, buildY, pathFinding);
 		}
 	}
 	
@@ -340,21 +413,28 @@ public class UnitThinker {
 		}
 	}
 	
-	public void ninjaWarriorStrategy() {
+	/**
+	 * \brief Focuses on an enemy, avoiding all distractions like a good ninja
+	 * \param enemy the enemy to focus. If null, the closest enemy is chosen
+	 */
+	public void ninjaWarriorStrategy(Unit enemy) {
+		// Make sure we can act
 		if (units.getAction(unit) != null) {
 			return;
 		}
 		
-		// Charge at the closest enemy!
-		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
+		// Pick the closest enemy if one isn't provided
+		if (enemy == null) {
+			enemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
+		}
 		
+		// Attack neighbours, dodge attackers, or move towards the enemy
 		if (attackNeighbourStrategy(false)) {
 			return;//DebugUtils.setUnitLabel(unit, "DIE NEIGHBOUR");
 		} else if (dodgeStrategy(null)) {
 			DebugUtils.setUnitLabel(unit, "Dodge strat!");
-			return;
-		} else if (closestEnemy != null) {
-			moveSafely(closestEnemy.getX(), closestEnemy.getY(), 1, 2);
+		} else if (enemy != null) {
+			moveSafely(enemy.getX(), enemy.getY(), 1, 2);
 		}
 	}
 	
@@ -385,12 +465,24 @@ public class UnitThinker {
 		
 	}
 	
+	public void barracksProduceRangedStrategy() {
+		// Train a unit closest to the closest enemy
+		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
+		
+		if (closestEnemy != null) {
+			action = new TrainWithPreferredTile(unit, units.ranged, closestEnemy.getX(), closestEnemy.getY());	
+		} else {
+			// OK....uh, train a unit wherever then.
+			action = new Train(unit, units.worker);
+		}
+	}
+	
 	/**
-	 * \brief Moves to a position with no risk of being killed
+	 * \brief Moves to a position, trying to avoid enemies along the way
 	 * \param targetX the X position of the target
 	 * \param targetY the Y position of the target
-	 * \param range how close to the target do we want to get
-	 * \param maxWaitTime how long will we wait for a tile to become safe before we take another?
+	 * \param range how close to the target to arrive at
+	 * \param maxWaitTime how long will we wait for a tile to become safe before we take another? (TODO)
 	 */
 	public void moveSafely(int targetX, int targetY, int range, int maxWaitTime) {
 		if (units.getAction(unit) != null) {
@@ -429,6 +521,28 @@ public class UnitThinker {
 		}
 	}
 	
+	/**
+	 * \brief Moves to a position with pathfinding
+	 * \param targetX the X position of the target
+	 * \param targetY the Y position of the target
+	 * \param range how close to the target to arrive at
+	 */
+	public void moveStrategy(int targetX, int targetY, int range) {
+		if (units.getAction(unit) != null) {
+			return;
+		}
+		
+		// Get a path to the target
+		ResourceUsage ru = new ResourceUsage();
+		UnitAction moveAction = pathFinding.findPathToPositionInRange(unit, MapUtils.toPosition(targetX, targetY, gameState), range, gameState, ru);
+		
+		// Make sure we have somewhere to go!
+		if (moveAction != null && moveAction.getType() == UnitAction.TYPE_MOVE) {
+			// Go there
+			action = new Step(unit, moveAction.getDirection());
+		}
+	}
+	
 	// AttackVulnerableNeighbourStrategy
 	public boolean attackVulnerableEnemyStrategy() {
 		// Find an enemy that would be vulnerable if they are a charger
@@ -436,6 +550,25 @@ public class UnitThinker {
 		action = new DoNothing(unit, 1);
 		DebugUtils.setUnitLabel(unit, "Looking for vulnerable dudes");
 		return true;
+	}
+	
+	/**
+	 * \brief Aggressively attacks the closest enemy. This highly original strategy is (c) LouisBottomBotButtons
+	 */
+	public void rangedTempStrategy() {
+		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
+		
+		if (closestEnemy != null) {
+			if (attackNeighbourStrategy(false)) {
+				DebugUtils.setUnitLabel(unit, "[ranged] DIE!!");
+			} else {
+				DebugUtils.setUnitLabel(unit, "[ranged] CHASING!");
+				moveStrategy(closestEnemy.getX(), closestEnemy.getY(), 2);				
+			}
+		} else {
+			DebugUtils.setUnitLabel(unit, "[ranged] chilling");
+			action = new DoNothing(unit, 1);
+		}
 	}
 	
 	// Do a tree search to find an optimal direction to run away

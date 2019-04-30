@@ -3,6 +3,7 @@ package utilities;
 import rts.units.UnitTypeTable;
 import rts.units.UnitType;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -119,7 +120,7 @@ public class UnitUtils {
 	 * \return A list of units matching where UnitConditions.meetsConditions(unit) is true
 	 */
 	public List<Unit> findUnits(UnitConditions conditions) {
-		List<Unit> result = new LinkedList<Unit>();
+		List<Unit> result = new ArrayList<Unit>();
 
 		for (Unit u : gs.getUnits()) {
 			if (conditions.meetsConditions(u)) {

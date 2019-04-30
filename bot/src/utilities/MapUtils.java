@@ -28,7 +28,7 @@ public class MapUtils {
 	}
 
 	/**
-	 * \breif Converts an int position to an Y coordinate
+	 * \brief Converts an int position to an Y coordinate
 	 * \param position the position to convert
 	 * \param gs the current gamestate
 	 * \return the Y coordinate of the position
@@ -186,7 +186,7 @@ public class MapUtils {
 
 
 	/**
-	 * Returns the direction of the safest tile next to the position
+	 * \brief Returns the direction of the safest tile next to the position
 	 * \param x the X coordinate of the position
 	 * \param y the Y coordinate of the position
 	 * \param damageAmount the amount of damage could be taken before a tile is considered dangerous (todo remove?)
@@ -217,5 +217,28 @@ public class MapUtils {
 		
 		// Return the direction
 		return safestTile;
+	}
+	
+	/**
+	 * \brief Returns whether the given position exists
+	 * \param x the X coordinate of the tile
+	 * \param y the Y coordinate of the tile
+	 * \param pgs current physical game state
+	 * \return true if the tile exists, false otherwise
+	 */
+	public static boolean tileExists(int x, int y, PhysicalGameState pgs) {
+		return (x >= 0 && y >= 0 && x < pgs.getWidth() && y < pgs.getHeight());
+	}
+
+	/**
+	 * \brief Returns whether the tile at the given position is free AND exists
+	 * \param x the X coordinate of the tile
+	 * \param y the Y coordinate of the tile
+	 * \param gs current game state
+	 * \return true of the tile is free and exists, false otherwise
+	 */
+	public static boolean tileIsFree(int x, int y, GameState gs) {
+		PhysicalGameState pgs = gs.getPhysicalGameState();
+		return (x >= 0 && y >= 0 && x < pgs.getWidth() && y < pgs.getHeight() && gs.free(x, y));
 	}
 }

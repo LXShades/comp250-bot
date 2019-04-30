@@ -9,6 +9,7 @@ import rts.UnitAction;
 import rts.units.Unit;
 import rts.units.UnitType;
 import util.XMLWriter;
+import utilities.MapUtils;
 
 public class TrainWithPreferredTile extends AbstractAction {
 	// Unit information
@@ -67,10 +68,11 @@ public class TrainWithPreferredTile extends AbstractAction {
         int closestDirection = -1;
         
         for (int i = 0; i < 4; i++) {
-        	int currentDistance = distance(unit.getX() + UnitAction.DIRECTION_OFFSET_X[i], unit.getY() + UnitAction.DIRECTION_OFFSET_Y[i], targetX, targetY);
+        	int produceX = unit.getX() + UnitAction.DIRECTION_OFFSET_X[i], produceY = unit.getY() + UnitAction.DIRECTION_OFFSET_Y[i];
+        	int currentDistance = distance(produceX, produceY, targetX, targetY);
         	
         	// check if this is the closest place to spawn
-        	if (currentDistance < closestDistance && gs.free(unit.getX() + UnitAction.DIRECTION_OFFSET_X[i], unit.getY() + UnitAction.DIRECTION_OFFSET_Y[i])) {
+        	if (currentDistance < closestDistance && MapUtils.tileIsFree(produceX, produceY, gs)) {
         		closestDistance = currentDistance;
         		closestDirection = i;
         	}
