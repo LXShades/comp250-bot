@@ -143,14 +143,15 @@ public class UnitThinker {
 					moveSafely(neighbourPositions[closestPositionIndex * 2], neighbourPositions[closestPositionIndex * 2 + 1], 0, 2);
 					DebugUtils.setUnitLabel(unit, "travelling home~");
 				} else {
-					// We're next to a base! Drop our shizzle here
-					DebugUtils.setUnitLabel(unit, "I've picked up something nice");
+					// We're next to a base! Install our resources into the base
+					DebugUtils.setUnitLabel(unit, "dropping weed for da boiz");
 					action = new Harvest(unit, closestResource, closestBase, pathFinding);
 				}
 
 				// Also: Kill enemy workers if they meet me (self-defense!)
 			} else {
-				DebugUtils.setUnitLabel(unit, "Going to collect~");
+				// Go out and collect resources
+				DebugUtils.setUnitLabel(unit, "getting some weed");
 				action = new Harvest(unit, closestResource, closestBase, pathFinding);
 			}
 		}
@@ -216,12 +217,16 @@ public class UnitThinker {
 			// Check if this enemy could attack us here before we can run
 			if (!onlyIfDangerous || 
 				  (MapUtils.distance(unit, enemyX, enemyY) <= enemy.getAttackRange() && units.timeToFinishAction(enemy) + enemy.getAttackTime() <= unit.getMoveTime())) {
-				// It's officially unsafe to run (assuming the enemy attacks us)
-				isInDanger = true;
+				// We can't run in time (assuming the enemy attacks us)
+				if (enemy.getType().canAttack) {
+					isInDanger = true;					
+				}
 				
-				// Check if we can actually kill this enemy before they kill us.
+				// Check if we can actually attack this enemy before they kill us
 				// If we can't, don't bother trying - we could possibly attack something else instead
-				if (MapUtils.distance(unit, enemy) <= unit.getAttackRange() && enemy.getAttackTime() >= unit.getAttackTime()) {
+				if (MapUtils.distance(unit, enemy) <= unit.getAttackRange()
+						&& ((enemy.getAttackTime() >= unit.getAttackTime() || !enemy.getType().canAttack)
+						||   unit.getHitPoints() > enemy.getMaxDamage())) {
 					// Attack this enemy
 					DebugUtils.setUnitLabel(unit, "DangNeighbor: Attack");
 					action = new Attack(unit, enemy, pathFinding);
@@ -344,7 +349,7 @@ public class UnitThinker {
 		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
 		
 		if (attackNeighbourStrategy(false)) {
-			DebugUtils.setUnitLabel(unit, "DIE NEIGHBOUR");
+			return;//DebugUtils.setUnitLabel(unit, "DIE NEIGHBOUR");
 		} else if (dodgeStrategy(null)) {
 			DebugUtils.setUnitLabel(unit, "Dodge strat!");
 			return;
@@ -388,37 +393,39 @@ public class UnitThinker {
 	 * \param maxWaitTime how long will we wait for a tile to become safe before we take another?
 	 */
 	public void moveSafely(int targetX, int targetY, int range, int maxWaitTime) {
-		if (units.getAction(unit) == null) {
-			// todo rewrite the entire A* algorithm to avoid dangerous tiles
-			// Get a path to the target
-			ResourceUsage ru = new ResourceUsage();
-			UnitAction moveAction = pathFinding.findPathToPositionInRange(unit, MapUtils.toPosition(targetX, targetY, gameState), range, gameState, ru);
-			
-			// Make sure we have somewhere to go!
-			if (moveAction == null || moveAction.getType() != UnitAction.TYPE_MOVE) {
-				return;
-			}
-			
-			// Ensure the next step is not a dangerous tile
-			/*int dangerTime = MapUtils.getDangerTime(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
-											     unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], 1, units);*/
-			int dangerTime = MapUtils.getDangerTimeAssumingEnemiesCharge(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
-					   unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], 1, unit.getMoveTime(), units);
+		if (units.getAction(unit) != null) {
+			return;
+		}
+		
+		// todo rewrite the entire A* algorithm to avoid dangerous tiles
+		// Get a path to the target
+		ResourceUsage ru = new ResourceUsage();
+		UnitAction moveAction = pathFinding.findPathToPositionInRange(unit, MapUtils.toPosition(targetX, targetY, gameState), range, gameState, ru);
+		
+		// Make sure we have somewhere to go!
+		if (moveAction == null || moveAction.getType() != UnitAction.TYPE_MOVE) {
+			return;
+		}
+		
+		// Ensure the next step is not a dangerous tile
+		/*int dangerTime = MapUtils.getDangerTime(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
+										     unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], 1, units);*/
+		int dangerTime = MapUtils.getDangerTimeAssumingEnemiesCharge(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
+				   unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], 1, unit.getMoveTime(), units);
 
-			if (dangerTime > unit.getMoveTime() * 2) {
-				// If we can move to AND escape the tile unharmed, it's safe
-				DebugUtils.setUnitLabel(unit, "[moveSafely] Moving normally " + dangerTime);
-				action = new Step(unit, moveAction.getDirection());	
-			} else if (dangerTime > unit.getMoveTime() && attackVulnerableEnemyStrategy()) {
-				// If we have time to move into the tile, see if there's a vulnerable enemy that we could hit-and-miss
-				DebugUtils.setUnitLabel(unit, "[moveSafely] Attack vulnerable dude " + dangerTime);
-			} else {
-				// todo: take a preferred tile with a directional bias
-				DebugUtils.setUnitLabel(unit, "[moveSafely] Safest neighbour " + dangerTime);
-				
-				// Consider waiting for a while. When time has expired, move somewhere else I guess!
-				action = new Step(unit, MapUtils.findSafestNeighbour(unit.getX(), unit.getY(), 1, units));
-			}
+		if (dangerTime > unit.getMoveTime() * 2) {
+			// If we can move to AND escape the tile unharmed, it's safe
+			DebugUtils.setUnitLabel(unit, "[moveSafely] Moving normally " + dangerTime);
+			action = new Step(unit, moveAction.getDirection());	
+		} else if (dangerTime > unit.getMoveTime() && attackVulnerableEnemyStrategy()) {
+			// If we have time to move into the tile, see if there's a vulnerable enemy that we could hit-and-miss
+			DebugUtils.setUnitLabel(unit, "[moveSafely] Attack vulnerable dude " + dangerTime);
+		} else {
+			// todo: take a preferred tile with a directional bias
+			DebugUtils.setUnitLabel(unit, "[moveSafely] Safest neighbour " + dangerTime);
+			
+			// Consider waiting for a while. When time has expired, move somewhere else I guess!
+			action = new Step(unit, MapUtils.findSafestNeighbour(unit.getX(), unit.getY(), 1, units));
 		}
 	}
 	

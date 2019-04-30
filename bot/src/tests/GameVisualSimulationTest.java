@@ -62,7 +62,7 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
         // Make the world easier for myself, Louis, the almighty creator of the finest and highly tested robots.
         w.addWindowListener(this); // let me close the window without it still running!
         w.addKeyListener(this);    // let me fast-forward, slow down, and pause the game!
-        PhysicalGameStatePanel.unitLabels = DebugUtils.getUnitLabels();
+        //PhysicalGameStatePanel.unitLabels = DebugUtils.getUnitLabels();
         
         long nextTimeToUpdate = System.currentTimeMillis() + PERIOD;
         boolean doFrameStep = false;
