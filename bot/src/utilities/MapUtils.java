@@ -1,6 +1,8 @@
 package utilities;
 
 import rts.GameState;
+import rts.PhysicalGameState;
+import rts.UnitAction;
 import rts.units.Unit;
 
 public class MapUtils {
@@ -9,10 +11,30 @@ public class MapUtils {
 	 * \param x the X position to convert
 	 * \param y the Y position to convert
 	 * \param gs the current GameState
-	 * \return the combined XY position value
+	 * \return the position as a single int
 	 */
-	public static int coordsToPosition(int x, int y, GameState gs) {
+	public static int toPosition(int x, int y, GameState gs) {
 		return x + y * gs.getPhysicalGameState().getWidth();
+	}
+	
+	/**
+	 * \breif Converts an int position to an X coordinate
+	 * \param position the position to convert
+	 * \param gs the current gamestate
+	 * \return the X coordinate of the position
+	 */
+	public static int toX(int position, GameState gs) {
+		return position % gs.getPhysicalGameState().getWidth();
+	}
+
+	/**
+	 * \breif Converts an int position to an Y coordinate
+	 * \param position the position to convert
+	 * \param gs the current gamestate
+	 * \return the Y coordinate of the position
+	 */
+	public static int toY(int position, GameState gs) {
+		return position / gs.getPhysicalGameState().getWidth();
 	}
 	
 	/**
@@ -73,5 +95,127 @@ public class MapUtils {
 	 */
 	public static int distance(Unit a, int x, int y) {
 		return Math.abs(a.getX() - x) + Math.abs(a.getY() - y);
+	}
+
+	/**
+	 * Returns how quickly it would take to receive a certain amount of damage at the given tile, if every enemy unit attacked
+	 * \param x the X coordinate of the position
+	 * \param y the Y coordinate of the position
+	 * \param damageAmount the amount of damage could be taken before a tile is considered dangerous
+	 * \return The shortest time that this tile could be attacked by an enemy to the amount 'damageAmount'
+	 */
+	public static int getDangerTime(int x, int y, int damageAmount, UnitUtils units) {
+		if (damageAmount == 0) {
+			return Integer.MAX_VALUE;
+		}
+		
+		int dangerTime = Integer.MAX_VALUE;
+		
+		// Search all enemy units that can attack us
+		for (Unit u : units.findUnits((Unit u) -> units.isEnemy(u) && u.getType().canAttack)) {
+			int enemyX = u.getX(), enemyY = u.getY();
+			int timeToFinishCurrentAction = units.timeToFinishAction(u);
+			
+			if (timeToFinishCurrentAction > 0) {
+				// Simulate enemy movement if necessary
+				UnitAction enemyAction = units.getAction(u);
+				
+				if (enemyAction.getType() == UnitAction.TYPE_MOVE) {
+					enemyX += UnitAction.DIRECTION_OFFSET_X[enemyAction.getDirection()];
+					enemyY += UnitAction.DIRECTION_OFFSET_Y[enemyAction.getDirection()];
+				}
+			}
+			
+			// Check how long it would take to get in range of the player
+			int distance = MapUtils.distance(enemyX, enemyY, x, y);
+			int timeToTravel = Math.max(distance - u.getType().attackRange, 0) * u.getType().moveTime;
+			
+			// Update the danger level
+			dangerTime = Math.min(dangerTime, timeToFinishCurrentAction + timeToTravel + damageAmount * u.getType().attackTime);
+		}
+		
+		return dangerTime;
+	}
+	
+	/**
+	 * \brief Returns how quickly it would take to receive a certain amount of damage at the given tile, if every enemy unit attacked. This also assumes that enemies will never wait on a tile.
+	 * \param x the X coordinate of the position
+	 * \param y the Y coordinate of the position
+	 * \param arrivalTime the time it would take for an allied unit to arrive at the position
+	 * \param damageAmount the amount of damage could be taken before a tile is considered dangerous
+	 * \return The shortest time that this tile could be attacked by an enemy to the amount 'damageAmount'
+	 */
+	public static int getDangerTimeAssumingEnemiesCharge(int x, int y, int damageAmount, int arrivalTime, UnitUtils units) {
+		if (damageAmount == 0) {
+			return Integer.MAX_VALUE;
+		}
+		
+		int dangerTime = Integer.MAX_VALUE;
+		
+		// Search all enemy units that can attack us
+		for (Unit u : units.findUnits((Unit u) -> units.isEnemy(u) && u.getType().canAttack)) {
+			int enemyX = u.getX(), enemyY = u.getY();
+			int timeToFinishCurrentAction = units.timeToFinishAction(u);
+			
+			if (timeToFinishCurrentAction > 0) {
+				// Simulate enemy movement if necessary
+				UnitAction enemyAction = units.getAction(u);
+				
+				if (enemyAction.getType() == UnitAction.TYPE_MOVE) {
+					enemyX += UnitAction.DIRECTION_OFFSET_X[enemyAction.getDirection()];
+					enemyY += UnitAction.DIRECTION_OFFSET_Y[enemyAction.getDirection()];
+				}
+			}
+			
+			// Check how long it would take to get in range of the player
+			int distance = MapUtils.distance(enemyX, enemyY, x, y);
+			int timeToTravel = Math.max(distance - u.getType().attackRange, 0) * u.getType().moveTime;
+			
+			if ((timeToTravel + timeToFinishCurrentAction) % arrivalTime == 0) {
+				// We expect the arrival time of the enemy to be in sync with the arrival time of our unit
+				dangerTime = Math.min(dangerTime, timeToFinishCurrentAction + timeToTravel + damageAmount * u.getType().attackTime);
+			} else {
+				// We expect the enemy will rush past and need to turn back
+				dangerTime = Math.min(dangerTime, timeToFinishCurrentAction + timeToTravel + u.getType().moveTime + damageAmount * u.getType().attackTime);
+			}
+		}
+		
+		return dangerTime;
+	}
+	
+
+
+	/**
+	 * Returns the direction of the safest tile next to the position
+	 * \param x the X coordinate of the position
+	 * \param y the Y coordinate of the position
+	 * \param damageAmount the amount of damage could be taken before a tile is considered dangerous (todo remove?)
+	 * \return The safest neighbour for a unit to take
+	 */
+	public static int findSafestNeighbour(int x, int y, int damageAmount, UnitUtils units) {
+		GameState gs = units.getGameState();
+		int mapWidth = gs.getPhysicalGameState().getWidth(), mapHeight = gs.getPhysicalGameState().getHeight();
+		int safestDangerTime = Integer.MIN_VALUE;  // 'dangerLevel' is determined by 'how quickly could you die by standing in this spot'
+		int safestTile = UnitAction.DIRECTION_DOWN;
+		
+		// Iterate every neighbouring tile
+		for (int i = 0; i < 4; i++) {
+			int targetX = x + UnitAction.DIRECTION_OFFSET_X[i], targetY = y + UnitAction.DIRECTION_OFFSET_Y[i];
+			
+			// Skip if we can't move here
+			if (targetX >= mapWidth || targetX < 0 || targetY >= mapHeight|| targetY < 0 || !gs.free(targetX, targetY)) {
+				continue;
+			}
+			
+			int dangerLevel = getDangerTime(targetX, targetY, damageAmount, units);
+			
+			if (dangerLevel > safestDangerTime) {
+				safestDangerTime = dangerLevel;
+				safestTile = i;
+			}
+		}
+		
+		// Return the direction
+		return safestTile;
 	}
 }

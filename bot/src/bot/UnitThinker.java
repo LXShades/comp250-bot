@@ -40,8 +40,6 @@ import utilities.UnitUtils;
  * 
  */
 public class UnitThinker {
-	public MyDisappointingRoboticSon bot = null; /**< The parent bot */
-    
     private Unit unit; /**< The Unit associated with this thinker */
     
     private UnitUtils units;
@@ -50,6 +48,8 @@ public class UnitThinker {
     
     private GameState gameState; /**< The gamestate as of the last tick */
     
+    private PathFinding pathFinding; /**< The pathfinding engine to be used with this thinker */
+    
     @FunctionalInterface
     public interface StrategyFunc {
     	void invoke();
@@ -57,11 +57,22 @@ public class UnitThinker {
     
     public StrategyFunc strategy = () -> doNothingStrategy();
     
-    // Instantiates the UnitThinker with the associated unit and bot dependencies
-    public UnitThinker(Unit unit, MyDisappointingRoboticSon parent, UnitUtils units, int playerId) {
+    /**
+     * \brief Instantiates the UnitThinker with the associated unit and bot dependencies
+     * \param unit the unit associated with this thinker 
+     * \param units the UnitUtils of the controlling bot
+     */
+    public UnitThinker(Unit unit, UnitUtils units) {
     	this.unit = unit;
-    	this.bot = parent;
     	this.units = units;
+    	this.pathFinding = new AStarPathFinding();
+    }
+    
+    /**
+     * Returns the unit associated with this thinker
+     */
+    public Unit getUnit() {
+    	return unit;
     }
     
     public void tick(GameState gs) {
@@ -69,23 +80,21 @@ public class UnitThinker {
     	gameState = gs;
     	
     	// Do nothing by default
-    	if (bot.getUnitAction(unit) == null) {
+    	if (units.getAction(unit) == null) {
     		action = new DoNothing(unit, 1);
     	}
     	
-    	
-    	
     	// Try the assigned strategy
-    	HashMap<Unit, String> l = DebugUtils.getUnitLabels();
+    	/*HashMap<Unit, String> l = DebugUtils.getUnitLabels();
     	for (Unit k : l.keySet()) {
     		DebugUtils.setUnitLabel(k,  "");
-    	}
+    	}*/
     	
     	strategy.invoke();
     	
-    	DebugUtils.setUnitLabel(unit, (l.containsKey(unit) ? l.get(unit) : "") + " nochg: " + 
-    	bot.getDangerTime(bot.getUnitX(unit, unit.getMoveTime()), bot.getUnitY(unit, unit.getMoveTime()), 1) + "; chg: " + 
-    	bot.getDangerTimeAssumingEnemiesCharge(bot.getUnitX(unit, unit.getMoveTime()), bot.getUnitY(unit, unit.getMoveTime()), 1, unit.getMoveTime()));
+    	/*DebugUtils.setUnitLabel(unit, (l.containsKey(unit) ? l.get(unit) : "") + "d: " + 
+    	MapUtils.getDangerTime(units.getXAfter(unit, unit.getMoveTime()), units.getYAfter(unit, unit.getMoveTime()), 1, units) + "; chg: " + 
+    	MapUtils.getDangerTimeAssumingEnemiesCharge(units.getXAfter(unit, unit.getMoveTime()), units.getYAfter(unit, unit.getMoveTime()), 1, unit.getMoveTime(), units));*/
     }
     
     /**
@@ -103,9 +112,11 @@ public class UnitThinker {
 		Unit closestResource = null, closestBase = null;
 
 		// Find the closest relevant units
-		closestResource = bot.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getType().isResource);
-		closestBase = bot.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isBase(u) && !units.isEnemy(u));
+		closestResource = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getType().isResource);
+		closestBase = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isBase(u) && !units.isEnemy(u));
 
+		DebugUtils.setUnitLabel(unit, "just doing my job sir");
+		
 		if (closestResource != null && closestBase != null) {
 			if (unit.getResources() == 1) {
 				if (MapUtils.distance(unit, closestBase) > 1) {
@@ -129,15 +140,18 @@ public class UnitThinker {
 					}
 
 					// Begin the journey of a thousand tiles
-					moveSafely(neighbourPositions[closestPositionIndex * 2], neighbourPositions[closestPositionIndex * 2 + 1], 1, 2);
+					moveSafely(neighbourPositions[closestPositionIndex * 2], neighbourPositions[closestPositionIndex * 2 + 1], 0, 2);
+					DebugUtils.setUnitLabel(unit, "travelling home~");
 				} else {
 					// We're next to a base! Drop our shizzle here
-					action = new Harvest(unit, closestResource, closestBase, bot.getPathFinding());
+					DebugUtils.setUnitLabel(unit, "I've picked up something nice");
+					action = new Harvest(unit, closestResource, closestBase, pathFinding);
 				}
 
 				// Also: Kill enemy workers if they meet me (self-defense!)
 			} else {
-				action = new Harvest(unit, closestResource, closestBase, bot.getPathFinding());
+				DebugUtils.setUnitLabel(unit, "Going to collect~");
+				action = new Harvest(unit, closestResource, closestBase, pathFinding);
 			}
 		}
 	}
@@ -147,8 +161,8 @@ public class UnitThinker {
 	 */
 	public void workerBuildBarracksStrategy() {
 		// Only build if we're not already building/doing something
-		if (bot.getUnitAction(unit) == null) {
-			action = new Build(unit, units.barracks, unit.getX(), unit.getY(), bot.getPathFinding());
+		if (units.getAction(unit) == null) {
+			action = new Build(unit, units.barracks, unit.getX(), unit.getY(), pathFinding);
 		}
 	}
 	
@@ -267,19 +281,19 @@ public class UnitThinker {
 	// The dodgeStrategy will either override other strategies or leave them untouched
 	public boolean dodgeStrategy(Unit enemyToDodge) {
 		// Can we act now?
-		if (bot.getUnitAction(unit) != null) {
+		if (units.getAction(unit) != null) {
 			return false; // can't do anything yet
 		}
 
-		int danger = bot.getDangerTime(unit.getX(), unit.getY(), 1);
+		int danger = MapUtils.getDangerTime(unit.getX(), unit.getY(), 1, units);
 		
 		// Dodge the enemy if a) they are about to move next to us and b) we have time to run
-		int enemyTimeTilMove = bot.timeToFinishAction(enemyToDodge);
+		int enemyTimeTilMove = units.timeToFinishAction(enemyToDodge);
 		
 		if ((enemyToDodge != null && enemyTimeTilMove < unit.getMoveTime() - 1 && enemyTimeTilMove + enemyToDodge.getAttackTime() > unit.getMoveTime())
-				|| (enemyToDodge == null && bot.getDangerTime(unit.getX(), unit.getY(), 1) < unit.getMoveTime() + 1)) {
+				|| (enemyToDodge == null && MapUtils.getDangerTime(unit.getX(), unit.getY(), 1, units) < unit.getMoveTime() + 1)) {
 			// Run to a safe neighbouring tile
-			int runDirection = bot.findSafestNeighbour(unit.getX(), unit.getY(), unit.getMoveTime());
+			int runDirection = MapUtils.findSafestNeighbour(unit.getX(), unit.getY(), unit.getMoveTime(), units);
 			
 			action = new Step(unit, runDirection);
 			return true;
@@ -292,24 +306,24 @@ public class UnitThinker {
 		}
 	}
 	
-	// Attacks any enemies that could kill this unit before this unit can run
+	// Attacks any killable enemies that could kill this unit before this unit can run.
 	// todo: ranged unit support
 	public boolean attackNeighbourStrategy(boolean onlyIfDangerous) {
-		if (bot.getUnitAction(unit) != null) {
+		if (units.getAction(unit) != null) {
 			return false;
 		}
 		
 		// Find a neighbouring enemy to attack
-		List<Unit> enemyToAttack = bot.findUnits((Unit e) -> units.isEnemy(e) && MapUtils.distance(e, unit) <= unit.getAttackRange() + 1);
+		List<Unit> enemyToAttack = units.findUnits((Unit e) -> units.isEnemy(e) && MapUtils.distance(e, unit) <= unit.getAttackRange() + 1);
 		boolean isInDanger = false;
 		
 		for (Unit enemy : enemyToAttack) {
-			UnitAction enemyAction = bot.getUnitAction(enemy);
-			int enemyX = bot.getUnitX(enemy, unit.getMoveTime()), enemyY = bot.getUnitY(enemy, unit.getMoveTime()); 
+			UnitAction enemyAction = units.getAction(enemy);
+			int enemyX = units.getXAfter(enemy, unit.getMoveTime()), enemyY = units.getYAfter(enemy, unit.getMoveTime()); 
 			
 			// Check if this enemy could attack us here before we can run
 			if (!onlyIfDangerous || 
-				  (MapUtils.distance(unit, enemyX, enemyY) <= enemy.getAttackRange() && bot.timeToFinishAction(enemy) + enemy.getAttackTime() <= unit.getMoveTime())) {
+				  (MapUtils.distance(unit, enemyX, enemyY) <= enemy.getAttackRange() && units.timeToFinishAction(enemy) + enemy.getAttackTime() <= unit.getMoveTime())) {
 				// It's officially unsafe to run (assuming the enemy attacks us)
 				isInDanger = true;
 				
@@ -318,7 +332,7 @@ public class UnitThinker {
 				if (MapUtils.distance(unit, enemy) <= unit.getAttackRange() && enemy.getAttackTime() >= unit.getAttackTime()) {
 					// Attack this enemy
 					DebugUtils.setUnitLabel(unit, "DangNeighbor: Attack");
-					action = new Attack(unit, enemy, bot.getPathFinding());
+					action = new Attack(unit, enemy, pathFinding);
 					return true;
 				}
 			}
@@ -333,18 +347,116 @@ public class UnitThinker {
 		return isInDanger;
 	}
 	
+	/**
+	 * Runs a literal bait-and-switch strategy, where one brother baits an enemy into attacking, while the other leaps in to finish them off
+	 * \param this unit's loyal companion
+	 * \param the most likely (but not guaranteed!) next victim of the pair
+	 */
+	public void brotherStrategy(Unit myBrother, Unit victim) {
+		if (units.getAction(unit) != null) {
+			return;
+		}
+		
+		// Make sure the brothers are close and cosy enough!
+		int brotherToMe = MapUtils.distance(unit, myBrother);
+		int victimToMe = MapUtils.distance(unit, victim);
+		int victimToBrother = MapUtils.distance(myBrother, victim);
+		boolean isDefaultBrother = (MapUtils.toPosition(unit.getX(), unit.getY(), units.getGameState()) 
+								  < MapUtils.toPosition(myBrother.getX(), myBrother.getY(), units.getGameState()));
+		boolean isTooFarFromMyBeautifulBrother = brotherToMe > 1;
+		
+		if (attackNeighbourStrategy(true)) {
+			DebugUtils.setUnitLabel(unit, "Busy attacking");
+		} else if (isTooFarFromMyBeautifulBrother) {
+			// Move brothers towards each other (team up!)
+			if (brotherToMe <= 2) {
+				// Pick a brother to move because we don't want to swap positions
+				if (victimToMe > victimToBrother || (victimToMe == victimToBrother && isDefaultBrother)) {
+					moveSafely(myBrother.getX(), myBrother.getY(), 1, 0);
+					DebugUtils.setUnitLabel(unit, "Joining mah bro");
+				} else {
+					attackNeighbourStrategy(true);
+					DebugUtils.setUnitLabel(unit, "Waitin for mah bro");
+				}
+			} else {
+				// Move both brothers towards each other
+				moveSafely(myBrother.getX(), myBrother.getY(), 1, 0);
+				DebugUtils.setUnitLabel(unit, "Joining mah bro");
+			}
+		} else {
+			// Evaluate all possible positions where (E) is the enemy:
+			// 1) The attacker (A) is two free steps away from the enemy's target
+			// 2) The bait (B) is one step away from the enemy's target and ready to move
+			/*. . . . .
+			 *. A B A .
+			 *A . | . A
+			 *  A E A  */
+			//  One brother is 
+			// Take the one which can be prepared the quickest
+			
+			// A is always two steps away from the next position
+			// B is always one step away from the enemy's next position
+			// How to decide which one shall be A and B?
+			
+			// See if we're in a good position to dodge the enemy...
+			if (false/*dodgeStrategy(null)*/) {
+				DebugUtils.setUnitLabel(unit, "Dodge brother strat");
+			} else if (victimToMe > 3 && victimToBrother > 3) {
+				// Move both brothers towards the victim
+				moveSafely(victim.getX(), victim.getY(), 1, 0);
+				DebugUtils.setUnitLabel(unit, "Moving safely toward victim");
+			} else {
+				// See if the enemy is moving in
+				int enemyNextX = victim.getX(), enemyNextY = victim.getY();
+				UnitAction enemyAction = units.getAction(victim); 
+				if (enemyAction != null && enemyAction.getType() == UnitAction.TYPE_MOVE) {
+					enemyNextX += UnitAction.DIRECTION_OFFSET_X[enemyAction.getDirection()];
+					enemyNextY += UnitAction.DIRECTION_OFFSET_Y[enemyAction.getDirection()];
+				}
+				
+				// Determine whether our bait and switch can take place
+				int myDistance = MapUtils.distance(unit, enemyNextX, enemyNextY);
+				int brotherDistance = MapUtils.distance(myBrother,  enemyNextX, enemyNextY);
+				if ((myDistance == 1 && brotherDistance == 2) || (myDistance == 2 && brotherDistance == 1)) {
+					if (myDistance == 2) {
+						// We're the ATTACKER. We're going to step in just as soon as the victim has started
+						if (units.timeToFinishAction(victim) <= unit.getMoveTime() - 2) {
+							action = new Attack(unit, victim, pathFinding);
+						} else {
+							// wait until the victim can feel reasonably disappointed with themselves
+							action = new DoNothing(unit, 1);
+						}
+					} else {
+						// We're the BAIT. Let's get outta here!
+						action = new Step(unit, MapUtils.findSafestNeighbour(unit.getX(), unit.getY(), 1, units));
+					}
+					DebugUtils.setUnitLabel(unit,  "CALL TO ACTION!");
+				} else {
+					// Wait for the enemy to come closer, but attack any dangerous neighbours if any randomly show up
+					action = new DoNothing(unit, 1);
+					attackNeighbourStrategy(true);
+					DebugUtils.setUnitLabel(unit, "HOLD IT!!");
+				}
+			}
+			
+			// Do vulnerability thing
+		}
+	}
+	
 	public void ninjaWarriorStrategy() {
-		if (bot.getUnitAction(unit) != null) {
+		if (units.getAction(unit) != null) {
 			return;
 		}
 		
 		// Charge at the closest enemy!
-		Unit closestEnemy = bot.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
+		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
 		
-		/*if (dodgeStrategy(null)) {
+		if (attackNeighbourStrategy(false)) {
+			DebugUtils.setUnitLabel(unit, "DIE NEIGHBOUR");
+		} else if (dodgeStrategy(null)) {
 			DebugUtils.setUnitLabel(unit, "Dodge strat!");
 			return;
-		} else*/ if (closestEnemy != null) {
+		} else if (closestEnemy != null) {
 			moveSafely(closestEnemy.getX(), closestEnemy.getY(), 1, 2);
 		}
 	}
@@ -352,7 +464,7 @@ public class UnitThinker {
 	public void baseProduceCollectorStrategy() {
 		// Drop a collector
 		// Put a worker in the position closest to a resource
-		Unit closestResource = bot.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getType().isResource);
+		Unit closestResource = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getType().isResource);
 		int trainX = 0, trainY = 0;
 
 		if (closestResource != null) {
@@ -365,7 +477,7 @@ public class UnitThinker {
 	
 	public void baseProduceRusherStrategy() {
 		// Train a unit closest to the closest enemy
-		Unit closestEnemy = bot.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
+		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
 		
 		if (closestEnemy != null) {
 			action = new TrainWithPreferredTile(unit, units.worker, closestEnemy.getX(), closestEnemy.getY());	
@@ -384,11 +496,11 @@ public class UnitThinker {
 	 * \param maxWaitTime how long will we wait for a tile to become safe before we take another?
 	 */
 	public void moveSafely(int targetX, int targetY, int range, int maxWaitTime) {
-		if (bot.getUnitAction(unit) == null) {
+		if (units.getAction(unit) == null) {
 			// todo rewrite the entire A* algorithm to avoid dangerous tiles
 			// Get a path to the target
 			ResourceUsage ru = new ResourceUsage();
-			UnitAction moveAction = bot.getPathFinding().findPathToPositionInRange(unit, MapUtils.coordsToPosition(targetX, targetY, gameState), range, gameState, ru);
+			UnitAction moveAction = pathFinding.findPathToPositionInRange(unit, MapUtils.toPosition(targetX, targetY, gameState), range, gameState, ru);
 			
 			// Make sure we have somewhere to go!
 			if (moveAction == null || moveAction.getType() != UnitAction.TYPE_MOVE) {
@@ -396,11 +508,10 @@ public class UnitThinker {
 			}
 			
 			// Ensure the next step is not a dangerous tile
-			int dangerTime = bot.getDangerTime(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
-											   unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], 1);
-
-			dangerTime = bot.getDangerTimeAssumingEnemiesCharge(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
-					   unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], 1, unit.getMoveTime());
+			/*int dangerTime = MapUtils.getDangerTime(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
+											     unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], 1, units);*/
+			int dangerTime = MapUtils.getDangerTimeAssumingEnemiesCharge(unit.getX() + UnitAction.DIRECTION_OFFSET_X[moveAction.getDirection()],
+					   unit.getY() + UnitAction.DIRECTION_OFFSET_Y[moveAction.getDirection()], 1, unit.getMoveTime(), units);
 
 			if (dangerTime > unit.getMoveTime() * 2) {
 				// If we can move to AND escape the tile unharmed, it's safe
@@ -414,7 +525,7 @@ public class UnitThinker {
 				DebugUtils.setUnitLabel(unit, "[moveSafely] Safest neighbour " + dangerTime);
 				
 				// Consider waiting for a while. When time has expired, move somewhere else I guess!
-				action = new Step(unit, bot.findSafestNeighbour(unit.getX(), unit.getY(), 1));
+				action = new Step(unit, MapUtils.findSafestNeighbour(unit.getX(), unit.getY(), 1, units));
 			}
 		}
 	}
@@ -422,7 +533,7 @@ public class UnitThinker {
 	// AttackVulnerableNeighbourStrategy
 	public boolean attackVulnerableEnemyStrategy() {
 		// Find an enemy that would be vulnerable if they are a charger
-		List<Unit> enemies = bot.findUnits((Unit u) -> units.isEnemy(u) && MapUtils.distance(u,  unit) == 2);
+		List<Unit> enemies = units.findUnits((Unit u) -> units.isEnemy(u) && MapUtils.distance(u,  unit) == 2);
 		action = new DoNothing(unit, 1);
 		DebugUtils.setUnitLabel(unit, "Looking for vulnerable dudes");
 		return true;

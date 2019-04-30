@@ -1,5 +1,6 @@
 package bot;
 
+import ai.GameEvaluator;
 import ai.abstraction.AbstractionLayerAI;
 import ai.abstraction.Attack;
 import ai.abstraction.Idle;
@@ -32,13 +33,8 @@ import utilities.MapUtils;
 import utilities.DebugUtils;
 import utilities.UnitUtils;
 
-@FunctionalInterface
-interface UnitConditions {
-	boolean meetsConditions(Unit u);
-}
-
 public class MyDisappointingRoboticSon extends AbstractionLayerAI {
-	private UnitTypeTable utt;
+	private UnitTypeTable utt; /**< Unit type table stored for clones */
 
 	// Tick state variables
 	private int playerId = 0; /**< ID of the current player */
@@ -46,8 +42,8 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 	private GameState gs; /**< The current game state */
 	private PhysicalGameState pgs; /**< The current physical game state */
 	
-	private UnitUtils units;
-	private HashMap<Unit, UnitThinker> unitThinkers = new HashMap<Unit, UnitThinker>();
+	private UnitUtils units; /**< Unit utilities */
+	private HashMap<Unit, UnitThinker> unitThinkers = new HashMap<Unit, UnitThinker>(); /** UnitThinkers associated with each unit */
 	
 	public MyDisappointingRoboticSon(UnitTypeTable utt) {
 		// Initialise parent
@@ -77,43 +73,21 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		this.gs = gs;
 		this.pgs = pgs;
 
-		this.units.setCurrentPlayer(playerId);
+		this.units.tick(playerId, gs);
 		
 		// Synchronise the unit thinkers with the units
 		synchroniseUnitThinkers();
 
 		// Begin an evil strategy!?
-		List<Unit> targetedEnemies = new LinkedList<Unit>();
-		// Note the concentration of DPS into a small area
-		// 4 workers can distribute their DPS very effectively, and move fast
-
-		// Find out how quickly an enemy could attack us
-		List<Unit> closestBases = findUnits((Unit u) -> units.isBase(u) && u.getPlayer() == player);
-		int closestEnemyTimeToBase = 0;
-
-		if (closestBases.size() > 0) {
-			Unit closestBaseToDefend = closestBases.get(0);
-
-			if (closestBaseToDefend != null) {
-				Unit closestEnemyUnitToBase = findSoonestUnit(closestBaseToDefend.getX(), closestBaseToDefend.getY(), (Unit u) -> u.getPlayer() != player && u.getPlayer() != -1);
-
-				if (closestEnemyUnitToBase != null) {
-					closestEnemyTimeToBase = MapUtils.timeToReach(closestEnemyUnitToBase, closestBaseToDefend);
-					// debug("Closest enemy time to reach base: " + closestEnemyTimeToBase);
-				}
-			}
-		}
-
-		int numResources = 0;
-		int numRanged = countMyUnits((Unit u) -> units.isRanged(u));
-		int numBarracks = countMyUnits((Unit u) -> units.isBarracks(u));
-		int numWorkers = countMyUnits((Unit u) -> units.isWorker(u));
-		int numBases = countMyUnits((Unit u) -> units.isBase(u));
-		boolean doBuildBarracks = numRanged < 1 && closestEnemyTimeToBase > 80 && numWorkers > 1;
+		Unit ourBase = units.findClosestUnit(0, 0, (Unit u) -> units.isBase(u));
+		GameEvaluator eval = new GameEvaluator(playerId, gs, units);
+		boolean doBuildBarracks = ourBase != null && eval.numRanged < 1 && MapUtils.getDangerTime(ourBase.getX(), ourBase.getY(), 1, units) > 80 && eval.numResources - eval.numUnavailableResources > units.barracks.cost;
 		int numWorkersCollectingStuff = 0;
 		int numUsableResources = gs.getPlayer(player).getResources();
 		int numBrothers = 0;
 		Unit brothers[] = new Unit[2];
+		
+		List<Unit> targetedEnemies = new LinkedList<Unit>();
 
 		doBuildBarracks = false; // temp: disable barracks build
 		
@@ -122,7 +96,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 				UnitThinker thinker = unitThinkers.get(unit);
 				
 				if (units.isWorker(unit)) {
-					if (numWorkersCollectingStuff < 1 && numBases > 0) {
+					if (numWorkersCollectingStuff < 1 && eval.numBase > 0) {
 						// This worker will collect resources for the base
 						thinker.strategy = () -> thinker.workerCollectStrategy();
 
@@ -135,9 +109,9 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 						brothers[numBrothers++] = unit;
 					} else {
 						// Attack the closest enemy
-						Unit closestEnemy = findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getPlayer() != player && u.getPlayer() != -1);
+						Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getPlayer() != player && u.getPlayer() != -1);
 
-						if (closestEnemy != null && getUnitAction(unit) == null) {
+						if (closestEnemy != null && units.getAction(unit) == null) {
 							thinker.strategy = () -> thinker.ninjaWarriorStrategy();
 							
 							targetedEnemies.add(closestEnemy);
@@ -145,15 +119,11 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 					}
 				}
 				
-				// Power-swarm strategy
-				// Focus multiple workers on one ranged enemy
-				// if we beat the ranged enemy with two workers, we're on equal footing
-				
 				if (units.isBase(unit)) {
-					if (getUnitAction(unit) == null) {
+					if (units.getAction(unit) == null) {
 						if (numUsableResources >= units.worker.cost && (numUsableResources > units.barracks.cost + 1 || !doBuildBarracks)) {
 							// Produce a worker
-							if (numWorkers == 0) {
+							if (eval.numWorker == 0) {
 								thinker.strategy = () -> thinker.baseProduceCollectorStrategy();
 							} else {
 								// Drop an attacker
@@ -170,22 +140,27 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 					}
 				}
 
-				if (units.isBarracks(unit) && getUnitAction(unit) == null) {
+				if (units.isBarracks(unit) && units.getAction(unit) == null) {
 					if (gs.getPlayer(player).getResources() >= units.ranged.cost) {
 						train(unit, units.ranged);
 					}
 				}
 
 				if (units.isRanged(unit)) {
-					Unit closestEnemy = findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getPlayer() != player && u.getPlayer() != -1);
+					Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getPlayer() != player && u.getPlayer() != -1);
 					attack(unit, closestEnemy);
 				}
 			}
 		}
 		
-		// Test the brothers strategy
+		// BROTHERS STRATEGY
 		if (numBrothers == 2) {
-			//evilBrotherStrategy(brothers[0], brothers[1]);
+			Unit closestEnemy = units.findClosestUnit(brothers[0].getX(), brothers[0].getY(), (Unit u) -> units.isEnemy(u));
+			UnitThinker brotherA = unitThinkers.get(brothers[0]);
+			UnitThinker brotherB = unitThinkers.get(brothers[1]);
+			
+			brotherA.strategy = () -> brotherA.brotherStrategy(brotherB.getUnit(), closestEnemy);
+			brotherB.strategy = () -> brotherB.brotherStrategy(brotherA.getUnit(), closestEnemy);
 		}
 		
 		// Tick the thinkers
@@ -193,19 +168,6 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 			unitThinkers.get(key).tick(gs);
 			
 			actions.put(key, unitThinkers.get(key).getAction());
-		}
-		
-		// Assign empty actions to units which do not have any action
-		for (Unit u : pgs.getUnits()) {
-			try {
-				if (u.getPlayer() == playerId && getUnitAction(u) == null && (!actions.containsKey(u) || actions.get(u).completed(gs))) {
-					actions.put(u, new DoNothing(u, 1));
-				}
-			}
-			catch(Exception e) {
-				String crap = e.getMessage();
-				DebugUtils.print("Exception: " + crap);
-			}
 		}
 
 		// Done! Play our moves!
@@ -217,7 +179,9 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		return new ArrayList<>();
 	}
 	
-	// Synchronises unit thinkers with the gamestate, map, etc
+	/**
+	 * \brief Synchronises the unit thinkers with this bot's units
+	 */
 	private void synchroniseUnitThinkers() {
 		// Since we can't tell when a bot is deleted, copy unit thinkers from the unit thinker map to a new one for each existing unit
 		// The ones that have died will be left behind
@@ -232,241 +196,12 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 					newUnitThinkers.put(u, unitThinkers.get(u));
 				} else {
 					// This is a new unit: Create a new unit thinker!
-					newUnitThinkers.put(u, new UnitThinker(u, this, units, playerId));
+					newUnitThinkers.put(u, new UnitThinker(u, units));
 				}
 			}
 		}
 		
 		// Reassign the unit thinker map with the new map
 		unitThinkers = newUnitThinkers;
-	}
-	
-	// Returns a list of units that match the condition specified
-	public List<Unit> findUnits(UnitConditions conditions) {
-		List<Unit> result = new LinkedList<Unit>();
-
-		for (Unit u : pgs.getUnits()) {
-			if (conditions.meetsConditions(u)) {
-				result.add(u);
-			}
-		}
-
-		return result;
-	}
-
-	// Returns the closest unit of the given conditions
-	public Unit findClosestUnit(int x, int y, UnitConditions conditions) {
-		int closestDistance = Integer.MAX_VALUE;
-		Unit closestUnit = null;
-
-		// Find the unit closest to the supplied position
-		for (Unit unit : pgs.getUnits()) {
-			// Ensure the unit meets the supplied conditions
-			if (conditions.meetsConditions(unit)) {
-				/*
-				 * Since only horizontal and vertical movements are possible, distance is always
-				 * equal to xDifference + yDifference
-				 */
-				int thisDistance = Math.abs(unit.getX() - x) + Math.abs(unit.getY() - y);
-
-				if (thisDistance < closestDistance) {
-					closestUnit = unit;
-					closestDistance = thisDistance;
-				}
-			}
-		}
-
-		return closestUnit;
-	}
-
-	// Returns the unit that can reach the given position soonest
-	public Unit findSoonestUnit(int x, int y, UnitConditions conditions) {
-		int bestTravelTime = Integer.MAX_VALUE;
-		Unit bestUnit = null;
-
-		for (Unit unit : pgs.getUnits()) {
-			// Verify the conditions
-			if (conditions.meetsConditions(unit)) {
-				int thisTravelTime = MapUtils.timeToReach(unit, x, y);
-
-				if (thisTravelTime < bestTravelTime) {
-					bestTravelTime = thisTravelTime;
-					bestUnit = unit;
-				}
-			}
-		}
-
-		return bestUnit;
-	}
-
-	/**
-	 * Returns the direction of the safest tile next to the position
-	 * \param x the X coordinate of the position
-	 * \param y the Y coordinate of the position
-	 * \param damageAmount the amount of damage could be taken before a tile is considered dangerous (todo remove?)
-	 * \return The safest neighbour for a unit to take
-	 */
-	public int findSafestNeighbour(int x, int y, int damageAmount) {
-		int safestDangerTime = Integer.MIN_VALUE;  // 'dangerLevel' is determined by 'how quickly could you die by standing in this spot'
-		int safestTile = UnitAction.DIRECTION_DOWN;
-		
-		// Iterate every neighbouring tile
-		for (int i = 0; i < 4; i++) {
-			int targetX = x + UnitAction.DIRECTION_OFFSET_X[i], targetY = y + UnitAction.DIRECTION_OFFSET_Y[i];
-			
-			// Skip if we can't move here
-			if (targetX >= pgs.getWidth() || targetX < 0 || targetY >= pgs.getHeight() || targetY < 0 || !gs.free(targetX, targetY)) {
-				continue;
-			}
-			
-			int dangerLevel = getDangerTime(targetX, targetY, damageAmount);
-			
-			if (dangerLevel > safestDangerTime) {
-				safestDangerTime = dangerLevel;
-				safestTile = i;
-			}
-		}
-		
-		// Return the direction
-		return safestTile;
-	}
-
-	/**
-	 * Returns how quickly it would take to receive a certain amount of damage at the given tile, if every enemy unit attacked
-	 * \param x the X coordinate of the position
-	 * \param y the Y coordinate of the position
-	 * \param damageAmount the amount of damage could be taken before a tile is considered dangerous
-	 * \return The shortest time that this tile could be attacked by an enemy to the amount 'damageAmount'
-	 */
-	public int getDangerTime(int x, int y, int damageAmount) {
-		if (damageAmount == 0) {
-			return Integer.MAX_VALUE;
-		}
-		
-		int dangerTime = Integer.MAX_VALUE;
-		
-		for (Unit u : gs.getUnits()) {
-			if (u.getPlayer() != playerId && u.getType().canAttack) {
-				int enemyX = u.getX(), enemyY = u.getY();
-				int timeToFinishCurrentAction = timeToFinishAction(u);
-				
-				if (timeToFinishCurrentAction > 0) {
-					// Simulate enemy movement if necessary
-					UnitAction enemyAction = getUnitAction(u);
-					
-					if (enemyAction.getType() == UnitAction.TYPE_MOVE) {
-						enemyX += UnitAction.DIRECTION_OFFSET_X[enemyAction.getDirection()];
-						enemyY += UnitAction.DIRECTION_OFFSET_Y[enemyAction.getDirection()];
-					}
-				}
-				
-				// Check how long it would take to get in range of the player
-				int distance = MapUtils.distance(enemyX, enemyY, x, y);
-				int timeToTravel = Math.max(distance - u.getType().attackRange, 0) * u.getType().moveTime;
-				
-				// Update the danger level
-				dangerTime = Math.min(dangerTime, timeToFinishCurrentAction + timeToTravel + damageAmount * u.getType().attackTime);   
-			}
-		}
-		
-		return dangerTime;
-	}
-	
-	/**
-	 * \brief Returns how quickly it would take to receive a certain amount of damage at the given tile, if every enemy unit attacked. This assumes that enemies will either attack or move to another tile, but never wait.
-	 * \param x the X coordinate of the position
-	 * \param y the Y coordinate of the position
-	 * \param arrivalTime the time it would take for an allied unit to arrive at the position
-	 * \param damageAmount the amount of damage could be taken before a tile is considered dangerous
-	 * \return The shortest time that this tile could be attacked by an enemy to the amount 'damageAmount'
-	 */
-	public int getDangerTimeAssumingEnemiesCharge(int x, int y, int damageAmount, int arrivalTime) {
-		if (damageAmount == 0) {
-			return Integer.MAX_VALUE;
-		}
-		
-		int dangerTime = Integer.MAX_VALUE;
-		
-		for (Unit u : gs.getUnits()) {
-			if (u.getPlayer() != playerId && u.getType().canAttack) {
-				int enemyX = u.getX(), enemyY = u.getY();
-				int timeToFinishCurrentAction = timeToFinishAction(u);
-				
-				if (timeToFinishCurrentAction > 0) {
-					// Simulate enemy movement if necessary
-					UnitAction enemyAction = getUnitAction(u);
-					
-					if (enemyAction.getType() == UnitAction.TYPE_MOVE) {
-						enemyX += UnitAction.DIRECTION_OFFSET_X[enemyAction.getDirection()];
-						enemyY += UnitAction.DIRECTION_OFFSET_Y[enemyAction.getDirection()];
-					}
-				}
-				
-				// Check how long it would take to get in range of the player
-				int distance = MapUtils.distance(enemyX, enemyY, x, y);
-				int timeToTravel = Math.max(distance - u.getType().attackRange, 0) * u.getType().moveTime;
-				
-				if ((timeToTravel + timeToFinishCurrentAction) % arrivalTime == 0) {
-					// We expect the arrival time of the enemy to be in sync with the arrival time of our unit
-					dangerTime = Math.min(dangerTime, timeToFinishCurrentAction + timeToTravel + damageAmount * u.getType().attackTime);
-				} else {
-					// We expect the enemy will rush past and need to turn back
-					dangerTime = Math.min(dangerTime, timeToFinishCurrentAction + timeToTravel + u.getType().moveTime + damageAmount * u.getType().attackTime);
-				}
-			}
-		}
-		
-		return dangerTime;
-	}
-	
-	// Returns the number of units meeting the specified conditions
-	public int countMyUnits(UnitConditions conditions) {
-		int count = 0;
-
-		for (Unit u : pgs.getUnits()) {
-			if (u.getPlayer() == playerId && conditions.meetsConditions(u)) {
-				count++;
-			}
-		}
-
-		return count;
-	}
-	
-	// Returns the unit's current action, or null if there is no active action assigned
-	public UnitAction getUnitAction(Unit u) {
-		UnitActionAssignment assignment = gs.getActionAssignment(u);
-		
-		return assignment != null ? assignment.action : null;
-	}
-	
-	// Returns the X position of a unit after the given time period
-	public int getUnitX(Unit u, int period) {
-		UnitAction action = getUnitAction(u);
-		
-		if (action != null && action.getType() == UnitAction.TYPE_MOVE && timeToFinishAction(u) <= period) {
-			return u.getX() + UnitAction.DIRECTION_OFFSET_X[action.getDirection()];
-		} else {
-			return u.getX();	
-		}
-	}
-	
-	// Returns the Y position of a unit after the given time period
-	public int getUnitY(Unit u, int period) {
-		UnitAction action = getUnitAction(u);
-		
-		if (action != null && action.getType() == UnitAction.TYPE_MOVE && timeToFinishAction(u) <= period) {
-			return u.getY() + UnitAction.DIRECTION_OFFSET_Y[action.getDirection()];
-		} else {
-			return u.getY();
-		}
-	}
-	
-	// Returns how long it would take for a unit to finish its current action
-	public int timeToFinishAction(Unit u) {
-		if (gs.getActionAssignment(u) == null) {
-			return 0;
-		}
-		
-		return gs.getActionAssignment(u).action.ETA(u) - (gs.getTime() - gs.getActionAssignment(u).time);
 	}
 }
