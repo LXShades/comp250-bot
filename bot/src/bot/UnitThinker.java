@@ -57,6 +57,8 @@ public class UnitThinker {
     
     private PathFinding pathFinding; /**< The default PathFinding engine to be used with this thinker */
     
+    private int timeWaited = 0; /**< The current number of ticks that this bot spent waiting since a wait began something */
+    
     @FunctionalInterface
     public interface StrategyFunc {
     	void invoke();
@@ -102,6 +104,13 @@ public class UnitThinker {
     	}*/
     	
     	strategy.invoke();
+    	
+    	// Detect wait strategies
+    	if (action instanceof DoNothing) {
+    		timeWaited++;
+    	} else {
+    		timeWaited = 0;
+    	}
     }
     
     /**
@@ -274,8 +283,7 @@ public class UnitThinker {
 		else
 		{
 			// We either haven't encountered an enemy yet, or we can't move in time to escape. Eye for an eye, find nearby enemies to attack
-			// Don't attack them if they're about to run away. We ain't gonna get outplayed by our own strategy!
-			return attackNeighbourStrategy(false);
+			return attackNeighbourStrategy(false, 20);
 		}
 	}
 
@@ -285,7 +293,7 @@ public class UnitThinker {
 	 * \return whether the strategy was undertaken
 	 * TODO: max wait time so it doesn't spare units who don't attack
 	 */
-	public boolean attackNeighbourStrategy(boolean onlyIfDangerous) {
+	public boolean attackNeighbourStrategy(boolean onlyIfDangerous, int maxWaitTime) {
 		if (units.getAction(unit) != null) {
 			return false;
 		}
@@ -310,7 +318,8 @@ public class UnitThinker {
 				// If we can't, don't bother trying - we could possibly attack something else instead
 				if (MapUtils.distance(unit, enemy) <= unit.getAttackRange()
 						&& ((enemy.getAttackTime() >= unit.getAttackTime() || !enemy.getType().canAttack)
-						||   unit.getHitPoints() > enemy.getMaxDamage())) {
+						||   unit.getHitPoints() > enemy.getMaxDamage())
+						|| timeWaited >= maxWaitTime) {
 					// Attack this enemy
 					DebugUtils.setUnitLabel(unit, "[AtkNbr]: Attacking");
 					action = new Attack(unit, enemy, pathFinding);
@@ -344,7 +353,7 @@ public class UnitThinker {
 		}
 		
 		// Attack neighbours, dodge attackers, or move towards the enemy
-		if (attackNeighbourStrategy(false)) {
+		if (attackNeighbourStrategy(false, 10)) {
 			return;//DebugUtils.setUnitLabel(unit, "DIE NEIGHBOUR");
 		} else if (dodgeStrategy(null)) {
 			DebugUtils.setUnitLabel(unit, "[ninja] Dodging!");
@@ -370,7 +379,7 @@ public class UnitThinker {
 		}
 		
 		// Attack vulnerable neighbours
-		if (attackNeighbourStrategy(false)) {
+		if (attackNeighbourStrategy(false, 5)) {
 			DebugUtils.setUnitLabel(unit, "[DeathDance] attacking");
 			return;
 		}
@@ -557,7 +566,7 @@ public class UnitThinker {
 								  < MapUtils.toPosition(myBrother.getX(), myBrother.getY(), units.getGameState()));
 		boolean isTooFarFromMyBeautifulBrother = brotherToMe > 1;
 		
-		if (attackNeighbourStrategy(true)) {
+		if (attackNeighbourStrategy(true, 15)) {
 			DebugUtils.setUnitLabel(unit, "Busy attacking");
 		} else if (isTooFarFromMyBeautifulBrother) {
 			// Move brothers towards each other (team up!)
@@ -567,7 +576,7 @@ public class UnitThinker {
 					moveSafely(myBrother.getX(), myBrother.getY(), 1, 0);
 					DebugUtils.setUnitLabel(unit, "Joining mah bro");
 				} else {
-					attackNeighbourStrategy(true);
+					attackNeighbourStrategy(true, 100);
 					DebugUtils.setUnitLabel(unit, "Waitin for mah bro");
 				}
 			} else {
@@ -626,7 +635,7 @@ public class UnitThinker {
 				} else {
 					// Wait for the enemy to come closer, but attack any dangerous neighbours if any randomly show up
 					action = new DoNothing(unit, 1);
-					attackNeighbourStrategy(true);
+					attackNeighbourStrategy(true, 20);
 					DebugUtils.setUnitLabel(unit, "HOLD IT!!");
 				}
 			}
@@ -654,7 +663,7 @@ public class UnitThinker {
 		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
 		
 		if (closestEnemy != null) {
-			if (attackNeighbourStrategy(false)) {
+			if (attackNeighbourStrategy(false, 4)) {
 				DebugUtils.setUnitLabel(unit, "[ranged] DIE!!");
 			} else {
 				DebugUtils.setUnitLabel(unit, "[ranged] CHASING!");
