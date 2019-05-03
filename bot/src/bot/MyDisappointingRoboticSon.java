@@ -104,9 +104,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 				UnitThinker thinker = unitThinkers.get(unit);
 
 				if (units.isWorker(unit)) {
-					if ((numWorkersCollectingStuff == 0 
-							|| (wannaBuildBarracks && numWorkersCollectingStuff < 2) 
-							|| (numWorkersCollectingStuff < 2 && eval.numAvailableResources < 3)) && eval.numBase > 0) {
+					if ((numWorkersCollectingStuff == 0 || (wannaBuildBarracks && numWorkersCollectingStuff < 2)) && eval.numBase > 0) {
 						// This worker will collect resources for the base
 						thinker.strategy = () -> thinker.workerCollectStrategy();
 

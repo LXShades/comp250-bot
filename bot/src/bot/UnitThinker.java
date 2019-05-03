@@ -139,14 +139,14 @@ public class UnitThinker {
 						int positionDistance = MapUtils.distance(closestResource, neighbourPositions[i * 2],
 								neighbourPositions[i * 2 + 1]);
 
-						if (positionDistance < closestPositionDistance) {
+						if (MapUtils.tileIsFree(neighbourPositions[i * 2], neighbourPositions[i * 1 + 1], gameState) && positionDistance < closestPositionDistance) {
 							closestPositionDistance = positionDistance;
 							closestPositionIndex = i;
 							break;
 						}
 					}
 
-					// Begin the journey of a thousand tiles
+					// Move to the best tile next to the base
 					moveSafely(neighbourPositions[closestPositionIndex * 2], neighbourPositions[closestPositionIndex * 2 + 1], 0, 2);
 					DebugUtils.setUnitLabel(unit, "travelling home~");
 				} else {
@@ -364,7 +364,7 @@ public class UnitThinker {
 		DebugUtils.setUnitLabel(unit, "[DeathDance]");
 		
 		// If there's no target, default to being a ninja
-		if (target == null) {
+		if (target == null || !target.getType().canMove) {
 			ninjaWarriorStrategy(null);
 			return;
 		}
@@ -476,10 +476,11 @@ public class UnitThinker {
 	 * \param targetY the Y position of the target
 	 * \param range how close to the target to arrive at
 	 * \param maxWaitTime how long will we wait for a tile to become safe before we take another? (TODO)
+	 * \return whether the strategy was undertaken
 	 */
-	public void moveSafely(int targetX, int targetY, int range, int maxWaitTime) {
+	public boolean moveSafely(int targetX, int targetY, int range, int maxWaitTime) {
 		if (units.getAction(unit) != null) {
-			return;
+			return false;
 		}
 		
 		// todo rewrite the entire A* algorithm to avoid dangerous tiles
@@ -489,7 +490,7 @@ public class UnitThinker {
 		
 		// Make sure we have somewhere to go!
 		if (moveAction == null || moveAction.getType() != UnitAction.TYPE_MOVE) {
-			return;
+			return false;
 		}
 		
 		// Ensure the next step is not a dangerous tile
@@ -512,6 +513,8 @@ public class UnitThinker {
 			// Consider waiting for a while. When time has expired, move somewhere else I guess!
 			action = new Step(unit, MapUtils.findSafestNeighbour(unit.getX(), unit.getY(), 1, units));
 		}
+		
+		return true;
 	}
 	
 	/**
