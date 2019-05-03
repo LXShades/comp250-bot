@@ -375,7 +375,7 @@ public class UnitThinker {
 		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
 		
 		if (closestEnemy != null) {
-			action = new TrainWithPreferredTile(unit, units.worker, closestEnemy.getX(), closestEnemy.getY());	
+			action = new TrainWithPreferredTile(unit, type, closestEnemy.getX(), closestEnemy.getY());	
 		} else {
 			// OK....uh, train a unit wherever then.
 			action = new Train(unit, type);

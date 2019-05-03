@@ -38,7 +38,7 @@ public class GameEvaluator {
 	public int numBuildingUnits = 0; /**< Number of units being built */
 	
 	public int numAvailableResources = 0; /**< The number of resources available to the player */
-	public int numUnavailableResources = 0; /**< The number of resources being used by the player */
+	public int numTotalResources = 0; /**< The number of resources total */
 	
 	/**
 	 * Instantiates a GameEvaluator with a basic evaluation of the player's state
@@ -49,7 +49,7 @@ public class GameEvaluator {
 	public GameEvaluator(int playerId, GameState gs, UnitUtils units) {
 		this.playerId = playerId;
 		
-		this.numAvailableResources = gs.getPlayer(playerId).getResources();
+		this.numTotalResources = this.numAvailableResources = gs.getPlayer(playerId).getResources();
 		
 		// Count units
 		for (Unit u : gs.getUnits()) {
@@ -68,7 +68,9 @@ public class GameEvaluator {
 				// Check if it is building a worker
 				if (actionType == UnitAction.TYPE_PRODUCE) {
 					numBuildingWorker++;
-					numUnavailableResources += units.worker.cost;
+					
+					// Subtract from available resources
+					numAvailableResources -= units.worker.cost;
 				}
 			}
 			else if (units.isBarracks(u)) {
@@ -83,6 +85,9 @@ public class GameEvaluator {
 					} else if (action.getUnitType() == units.ranged) {
 						numBuildingRanged++;
 					}
+					
+					// Subtract from available resources
+					numAvailableResources -= action.getUnitType().cost;
 				}
 			}
 			else if (units.isWorker(u)) {
@@ -98,8 +103,5 @@ public class GameEvaluator {
 				numRanged++;
 			}
 		}
-		
-		// Update available resources
-		this.numAvailableResources -= this.numUnavailableResources;
 	}
 }

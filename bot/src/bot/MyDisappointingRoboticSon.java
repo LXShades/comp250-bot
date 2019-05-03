@@ -161,7 +161,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 				}
 
 				if (units.isBarracks(unit) && units.getAction(unit) == null) {
-					if (eval.numAvailableResources - eval.numUnavailableResources >= units.ranged.cost) {
+					if (eval.numAvailableResources >= units.ranged.cost) {
 						thinker.strategy = () -> thinker.produceRusherStrategy(units.ranged);
 
 						eval.numAvailableResources -= units.ranged.cost;
