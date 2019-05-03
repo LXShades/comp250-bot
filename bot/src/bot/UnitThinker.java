@@ -278,9 +278,13 @@ public class UnitThinker {
 			return attackNeighbourStrategy(false);
 		}
 	}
-	
-	// Attacks any killable enemies that could kill this unit before this unit can run.
-	// todo: ranged unit support
+
+	/**
+	 * \brief Attacks neighbours Or potential neighbours
+	 * \param onlyIfDangerous if true, only attacks enemies that endanger this unit
+	 * \return whether the strategy was undertaken
+	 * TODO: max wait time so it doesn't spare units who don't attack
+	 */
 	public boolean attackNeighbourStrategy(boolean onlyIfDangerous) {
 		if (units.getAction(unit) != null) {
 			return false;
@@ -308,7 +312,7 @@ public class UnitThinker {
 						&& ((enemy.getAttackTime() >= unit.getAttackTime() || !enemy.getType().canAttack)
 						||   unit.getHitPoints() > enemy.getMaxDamage())) {
 					// Attack this enemy
-					DebugUtils.setUnitLabel(unit, "DangNeighbor: Attack");
+					DebugUtils.setUnitLabel(unit, "[AtkNbr]: Attacking");
 					action = new Attack(unit, enemy, pathFinding);
 					return true;
 				}
@@ -317,7 +321,7 @@ public class UnitThinker {
 		
 		// If no one was attacked, but there is a dangerous enemy approaching, wait for it to arrive and kill it
 		if (isInDanger) {
-			DebugUtils.setUnitLabel(unit, "DangNeighbor: In danger, waiting for attack");
+			DebugUtils.setUnitLabel(unit, "[AtkNbr]: Waiting");
 			action = new DoNothing(unit, 1);
 		}
 		
@@ -343,9 +347,92 @@ public class UnitThinker {
 		if (attackNeighbourStrategy(false)) {
 			return;//DebugUtils.setUnitLabel(unit, "DIE NEIGHBOUR");
 		} else if (dodgeStrategy(null)) {
-			DebugUtils.setUnitLabel(unit, "Dodge strat!");
+			DebugUtils.setUnitLabel(unit, "[ninja] Dodging!");
 		} else if (enemy != null) {
-			moveSafely(enemy.getX(), enemy.getY(), 1, 2);
+			moveSafely(enemy.getX(), enemy.getY() - 1, 1, 2);
+		}
+	}
+	
+	/**
+	 * \brief Attempts to brush by a naive enemy, killing it in a timing attack
+	 */
+	public void driveByStrategy(Unit target) {
+		if (units.getAction(unit) != null) {
+			return;
+		}
+		
+		DebugUtils.setUnitLabel(unit, "[DeathDance]");
+		
+		// If there's no target, default to being a ninja
+		if (target == null) {
+			ninjaWarriorStrategy(null);
+			return;
+		}
+		
+		// Attack vulnerable neighbours
+		if (attackNeighbourStrategy(false)) {
+			DebugUtils.setUnitLabel(unit, "[DeathDance] attacking");
+			return;
+		}
+
+		// Wait for the enemy to move
+		UnitAction targetAction = units.getAction(target);
+		
+		if (targetAction == null) {
+			// wait
+			action = new DoNothing(unit, 1);
+			return;
+		}
+		
+		// Determine its major axis
+		if (targetAction.getType() == UnitAction.TYPE_MOVE) {
+			boolean stratWorked = false;
+			
+			if (targetAction.getDirection() == UnitAction.DIRECTION_LEFT || targetAction.getDirection() == UnitAction.DIRECTION_RIGHT) {
+				// Major direction is horizontal, test if we can swipe by it
+				if (Math.abs(target.getX() - unit.getX()) > Math.abs(target.getY() - unit.getY())) {
+					// Affirmative! Let's attempt to swipe this target at the closest possible point
+					if (unit.getY() <= target.getY()) {
+						DebugUtils.setUnitLabel(unit, "[DeathDance] to (0,-1)");
+						moveStrategy(target.getX(), target.getY() - 1, 0);
+						stratWorked = true;
+					} else {
+						DebugUtils.setUnitLabel(unit, "[DeathDance] to (0,+1)");
+						moveStrategy(target.getX(), target.getX() + 1, 0);
+						stratWorked = true;
+					}
+				} else {
+					// Failed, revert to ninja warrior
+					ninjaWarriorStrategy(target);
+					return;
+				}
+			} else {
+				// Major direction is vertical, test if we can swipe by it
+				if (Math.abs(target.getY() - unit.getY()) > Math.abs(target.getX() - target.getX())) {
+					if (unit.getX() <= target.getX()) {
+						DebugUtils.setUnitLabel(unit, "[DeathDance] to (-1,0)");
+						moveStrategy(target.getX() - 1, target.getY(), 0);
+						stratWorked = true;
+					} else {
+						DebugUtils.setUnitLabel(unit, "[DeathDance] to (+1,0)");
+						moveStrategy(target.getX() + 1, target.getY(), 0);
+						stratWorked = true;
+					}
+				}
+			}
+			
+			if (stratWorked) {
+				// Sync with enemy
+				if (MapUtils.distance(unit, units.getXAfter(target, target.getMoveTime()), units.getYAfter(unit,  unit.getMoveTime())) == 3) {
+					// We want to wait a moment for the enemy to walk in. TODO: Add maximum wait time
+					DebugUtils.setUnitLabel(unit, "Hold it!");
+					action = new DoNothing(unit, 1);
+				}
+			}
+		} else {
+			// OK let's just go
+			ninjaWarriorStrategy(target);
+			return;
 		}
 	}
 	
@@ -446,6 +533,102 @@ public class UnitThinker {
 		if (moveAction != null && moveAction.getType() == UnitAction.TYPE_MOVE) {
 			// Go there
 			action = new Step(unit, moveAction.getDirection());
+		}
+	}
+	
+	/**
+	 * Runs a literal bait-and-switch strategy, where one brother baits an enemy into attacking, while the other leaps in to finish them off
+	 * \param this unit's loyal companion
+	 * \param the most likely (but not guaranteed!) next victim of the pair
+	 */
+	public void brotherStrategy(Unit myBrother, Unit victim) {
+		if (units.getAction(unit) != null) {
+			return;
+		}
+		
+		// Make sure the brothers are close and cosy enough!
+		int brotherToMe = MapUtils.distance(unit, myBrother);
+		int victimToMe = MapUtils.distance(unit, victim);
+		int victimToBrother = MapUtils.distance(myBrother, victim);
+		boolean isDefaultBrother = (MapUtils.toPosition(unit.getX(), unit.getY(), units.getGameState()) 
+								  < MapUtils.toPosition(myBrother.getX(), myBrother.getY(), units.getGameState()));
+		boolean isTooFarFromMyBeautifulBrother = brotherToMe > 1;
+		
+		if (attackNeighbourStrategy(true)) {
+			DebugUtils.setUnitLabel(unit, "Busy attacking");
+		} else if (isTooFarFromMyBeautifulBrother) {
+			// Move brothers towards each other (team up!)
+			if (brotherToMe <= 2) {
+				// Pick a brother to move because we don't want to swap positions
+				if (victimToMe > victimToBrother || (victimToMe == victimToBrother && isDefaultBrother)) {
+					moveSafely(myBrother.getX(), myBrother.getY(), 1, 0);
+					DebugUtils.setUnitLabel(unit, "Joining mah bro");
+				} else {
+					attackNeighbourStrategy(true);
+					DebugUtils.setUnitLabel(unit, "Waitin for mah bro");
+				}
+			} else {
+				// Move both brothers towards each other
+				moveSafely(myBrother.getX(), myBrother.getY(), 1, 0);
+				DebugUtils.setUnitLabel(unit, "Joining mah bro");
+			}
+		} else {
+			// Evaluate all possible positions where (E) is the enemy:
+			// 1) The attacker (A) is two free steps away from the enemy's target
+			// 2) The bait (B) is one step away from the enemy's target and ready to move
+			/*. . . . .
+			 *. A B A .
+			 *A . | . A
+			 *  A E A  */
+			//  One brother is 
+			// Take the one which can be prepared the quickest
+			
+			// A is always two steps away from the next position
+			// B is always one step away from the enemy's next position
+			// How to decide which one shall be A and B?
+			
+			// See if we're in a good position to dodge the enemy...
+			if (false/*dodgeStrategy(null)*/) {
+				DebugUtils.setUnitLabel(unit, "Dodge brother strat");
+			} else if (victimToMe > 3 && victimToBrother > 3) {
+				// Move both brothers towards the victim
+				moveSafely(victim.getX(), victim.getY(), 1, 0);
+				DebugUtils.setUnitLabel(unit, "Moving safely toward victim");
+			} else {
+				// See if the enemy is moving in
+				int enemyNextX = victim.getX(), enemyNextY = victim.getY();
+				UnitAction enemyAction = units.getAction(victim); 
+				if (enemyAction != null && enemyAction.getType() == UnitAction.TYPE_MOVE) {
+					enemyNextX += UnitAction.DIRECTION_OFFSET_X[enemyAction.getDirection()];
+					enemyNextY += UnitAction.DIRECTION_OFFSET_Y[enemyAction.getDirection()];
+				}
+				
+				// Determine whether our bait and switch can take place
+				int myDistance = MapUtils.distance(unit, enemyNextX, enemyNextY);
+				int brotherDistance = MapUtils.distance(myBrother,  enemyNextX, enemyNextY);
+				if ((myDistance == 1 && brotherDistance == 2) || (myDistance == 2 && brotherDistance == 1)) {
+					if (myDistance == 2) {
+						// We're the ATTACKER. We're going to step in just as soon as the victim has started
+						if (units.timeToFinishAction(victim) <= unit.getMoveTime() - 2) {
+							action = new Attack(unit, victim, pathFinding);
+						} else {
+							// wait until the victim can feel reasonably disappointed with themselves
+							action = new DoNothing(unit, 1);
+						}
+					} else {
+						// We're the BAIT. Let's get outta here!
+						action = new Step(unit, MapUtils.findSafestNeighbour(unit.getX(), unit.getY(), 1, units));
+					}
+					DebugUtils.setUnitLabel(unit,  "CALL TO ACTION!");
+				} else {
+					// Wait for the enemy to come closer, but attack any dangerous neighbours if any randomly show up
+					action = new DoNothing(unit, 1);
+					attackNeighbourStrategy(true);
+					DebugUtils.setUnitLabel(unit, "HOLD IT!!");
+				}
+			}
+			
+			// Do vulnerability thing
 		}
 	}
 	

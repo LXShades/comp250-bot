@@ -104,7 +104,9 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 				UnitThinker thinker = unitThinkers.get(unit);
 
 				if (units.isWorker(unit)) {
-					if (numWorkersCollectingStuff < 1 || (wannaBuildBarracks && numWorkersCollectingStuff < 2) && eval.numBase > 0) {
+					if ((numWorkersCollectingStuff == 0 
+							|| (wannaBuildBarracks && numWorkersCollectingStuff < 2) 
+							|| (numWorkersCollectingStuff < 2 && eval.numAvailableResources < 3)) && eval.numBase > 0) {
 						// This worker will collect resources for the base
 						thinker.strategy = () -> thinker.workerCollectStrategy();
 
@@ -134,7 +136,8 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 
 						if (closestEnemy != null && units.getAction(unit) == null) {
 							Unit enemyToTarget = enemyBase;
-							thinker.strategy = () -> thinker.ninjaWarriorStrategy(enemyToTarget);
+							//thinker.strategy = () -> thinker.ninjaWarriorStrategy(enemyToTarget);
+							thinker.strategy = () -> thinker.driveByStrategy(enemyToTarget);
 
 							targetedEnemies.add(closestEnemy);
 						}
@@ -184,6 +187,8 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 			// Okay, ninjas are better after all
 			brotherA.strategy = () -> brotherA.ninjaWarriorStrategy(null);
 			brotherB.strategy = () -> brotherB.ninjaWarriorStrategy(null);
+			
+			brotherA.strategy = () -> brotherA.driveByStrategy(closestEnemy);
 		}
 
 		// Tick the thinkers
