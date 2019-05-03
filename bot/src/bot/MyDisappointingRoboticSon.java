@@ -34,24 +34,16 @@ import utilities.DebugUtils;
 import utilities.UnitUtils;
 
 public class MyDisappointingRoboticSon extends AbstractionLayerAI {
-	private UnitTypeTable utt;
-	/** < Unit type table stored for clones */
+	private UnitTypeTable utt; /** < Unit type table stored for clones */
 
 	// Tick state variables
-	private int playerId = 0;
-	/** < ID of the current player */
-	private Player player = null;
-	/** < The current player */
-	private GameState gs;
-	/** < The current game state */
-	private PhysicalGameState pgs;
-	/** < The current physical game state */
+	private int playerId = 0; /** < ID of the current player */
+	private Player player = null; /** < The current player */
+	private GameState gs; /** < The current game state */
+	private PhysicalGameState pgs; /** < The current physical game state */
 
-	private UnitUtils units;
-	/** < Unit utilities */
-	private HashMap<Unit, UnitThinker> unitThinkers = new HashMap<Unit, UnitThinker>();
-
-	/** UnitThinkers associated with each unit */
+	private UnitUtils units; /** < Unit utilities */
+	private HashMap<Unit, UnitThinker> unitThinkers = new HashMap<Unit, UnitThinker>(); /**< UnitThinkers associated with each unit */
 
 	public MyDisappointingRoboticSon(UnitTypeTable utt) {
 		// Initialise parent
@@ -154,11 +146,11 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 						if (eval.numAvailableResources >= units.worker.cost) {
 							// Produce a worker
 							if (eval.numWorker == 0) {
-								thinker.strategy = () -> thinker.baseProduceCollectorStrategy();
+								thinker.strategy = () -> thinker.produceCollectorStrategy();
 							} else {
-								// Drop an attacker
+								// Drop a rusher
 								// Put a worker in the position closest to an enemy unit
-								thinker.strategy = () -> thinker.baseProduceRusherStrategy();
+								thinker.strategy = () -> thinker.produceRusherStrategy(units.worker);
 							}
 						} else {
 							thinker.strategy = () -> thinker.doNothingStrategy();
@@ -170,7 +162,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 
 				if (units.isBarracks(unit) && units.getAction(unit) == null) {
 					if (eval.numAvailableResources - eval.numUnavailableResources >= units.ranged.cost) {
-						thinker.strategy = () -> thinker.barracksProduceRangedStrategy();
+						thinker.strategy = () -> thinker.produceRusherStrategy(units.ranged);
 
 						eval.numAvailableResources -= units.ranged.cost;
 					}
@@ -189,8 +181,6 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 			UnitThinker brotherA = unitThinkers.get(brothers[0]);
 			UnitThinker brotherB = unitThinkers.get(brothers[1]);
 
-			//brotherA.strategy = () -> brotherA.brotherStrategy(brotherB.getUnit(), closestEnemy);
-			//brotherB.strategy = () -> brotherB.brotherStrategy(brotherA.getUnit(), closestEnemy);
 			// Okay, ninjas are better after all
 			brotherA.strategy = () -> brotherA.ninjaWarriorStrategy(null);
 			brotherB.strategy = () -> brotherB.ninjaWarriorStrategy(null);

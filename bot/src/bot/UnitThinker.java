@@ -82,6 +82,10 @@ public class UnitThinker {
     	return unit;
     }
     
+    /**
+     * \brief Ticks the thinker, undertaking any assigned strategies.
+     * \param gs the current game state to be used for strategies
+     */
     public void tick(GameState gs) {
     	// Update state variables
     	gameState = gs;
@@ -240,11 +244,14 @@ public class UnitThinker {
 		}
 	}
 	
-	// Dodges nearby attacks with a delay ('hopeful attack period')
-	// if enemyToDodge is null, all nearby enemies will be dodged
-	// if enemyToDodge is out of range, nothing will happen
-	// The strategy automatically attacks enemies that are likely to kill the player
-	// The dodgeStrategy will either override other strategies or leave them untouched
+	/**
+	 * \brief Dodges nearby attackers with a delay
+	 * If enemyToDodge is null, all nearby enemies will be dodged.
+	 * The strategy automatically attacks enemies that are likely to kill the player (NOTE: MOVE THIS?)
+	 * 
+	 * \param enemyToDodge Enemy to dodge, or null
+	 * \return Whether the strategy was undertaken
+	 */
 	public boolean dodgeStrategy(Unit enemyToDodge) {
 		// Can we act now?
 		if (units.getAction(unit) != null) {
@@ -318,102 +325,6 @@ public class UnitThinker {
 	}
 	
 	/**
-	 * Runs a literal bait-and-switch strategy, where one brother baits an enemy into attacking, while the other leaps in to finish them off
-	 * \param this unit's loyal companion
-	 * \param the most likely (but not guaranteed!) next victim of the pair
-	 */
-	public void brotherStrategy(Unit myBrother, Unit victim) {
-		if (units.getAction(unit) != null) {
-			return;
-		}
-		
-		// Make sure the brothers are close and cosy enough!
-		int brotherToMe = MapUtils.distance(unit, myBrother);
-		int victimToMe = MapUtils.distance(unit, victim);
-		int victimToBrother = MapUtils.distance(myBrother, victim);
-		boolean isDefaultBrother = (MapUtils.toPosition(unit.getX(), unit.getY(), units.getGameState()) 
-								  < MapUtils.toPosition(myBrother.getX(), myBrother.getY(), units.getGameState()));
-		boolean isTooFarFromMyBeautifulBrother = brotherToMe > 1;
-		
-		if (attackNeighbourStrategy(true)) {
-			DebugUtils.setUnitLabel(unit, "Busy attacking");
-		} else if (isTooFarFromMyBeautifulBrother) {
-			// Move brothers towards each other (team up!)
-			if (brotherToMe <= 2) {
-				// Pick a brother to move because we don't want to swap positions
-				if (victimToMe > victimToBrother || (victimToMe == victimToBrother && isDefaultBrother)) {
-					moveSafely(myBrother.getX(), myBrother.getY(), 1, 0);
-					DebugUtils.setUnitLabel(unit, "Joining mah bro");
-				} else {
-					attackNeighbourStrategy(true);
-					DebugUtils.setUnitLabel(unit, "Waitin for mah bro");
-				}
-			} else {
-				// Move both brothers towards each other
-				moveSafely(myBrother.getX(), myBrother.getY(), 1, 0);
-				DebugUtils.setUnitLabel(unit, "Joining mah bro");
-			}
-		} else {
-			// Evaluate all possible positions where (E) is the enemy:
-			// 1) The attacker (A) is two free steps away from the enemy's target
-			// 2) The bait (B) is one step away from the enemy's target and ready to move
-			/*. . . . .
-			 *. A B A .
-			 *A . | . A
-			 *  A E A  */
-			//  One brother is 
-			// Take the one which can be prepared the quickest
-			
-			// A is always two steps away from the next position
-			// B is always one step away from the enemy's next position
-			// How to decide which one shall be A and B?
-			
-			// See if we're in a good position to dodge the enemy...
-			if (false/*dodgeStrategy(null)*/) {
-				DebugUtils.setUnitLabel(unit, "Dodge brother strat");
-			} else if (victimToMe > 3 && victimToBrother > 3) {
-				// Move both brothers towards the victim
-				moveSafely(victim.getX(), victim.getY(), 1, 0);
-				DebugUtils.setUnitLabel(unit, "Moving safely toward victim");
-			} else {
-				// See if the enemy is moving in
-				int enemyNextX = victim.getX(), enemyNextY = victim.getY();
-				UnitAction enemyAction = units.getAction(victim); 
-				if (enemyAction != null && enemyAction.getType() == UnitAction.TYPE_MOVE) {
-					enemyNextX += UnitAction.DIRECTION_OFFSET_X[enemyAction.getDirection()];
-					enemyNextY += UnitAction.DIRECTION_OFFSET_Y[enemyAction.getDirection()];
-				}
-				
-				// Determine whether our bait and switch can take place
-				int myDistance = MapUtils.distance(unit, enemyNextX, enemyNextY);
-				int brotherDistance = MapUtils.distance(myBrother,  enemyNextX, enemyNextY);
-				if ((myDistance == 1 && brotherDistance == 2) || (myDistance == 2 && brotherDistance == 1)) {
-					if (myDistance == 2) {
-						// We're the ATTACKER. We're going to step in just as soon as the victim has started
-						if (units.timeToFinishAction(victim) <= unit.getMoveTime() - 2) {
-							action = new Attack(unit, victim, pathFinding);
-						} else {
-							// wait until the victim can feel reasonably disappointed with themselves
-							action = new DoNothing(unit, 1);
-						}
-					} else {
-						// We're the BAIT. Let's get outta here!
-						action = new Step(unit, MapUtils.findSafestNeighbour(unit.getX(), unit.getY(), 1, units));
-					}
-					DebugUtils.setUnitLabel(unit,  "CALL TO ACTION!");
-				} else {
-					// Wait for the enemy to come closer, but attack any dangerous neighbours if any randomly show up
-					action = new DoNothing(unit, 1);
-					attackNeighbourStrategy(true);
-					DebugUtils.setUnitLabel(unit, "HOLD IT!!");
-				}
-			}
-			
-			// Do vulnerability thing
-		}
-	}
-	
-	/**
 	 * \brief Focuses on an enemy, avoiding all distractions like a good ninja
 	 * \param enemy the enemy to focus. If null, the closest enemy is chosen
 	 */
@@ -438,7 +349,10 @@ public class UnitThinker {
 		}
 	}
 	
-	public void baseProduceCollectorStrategy() {
+	/**
+	 * \brief Produces a resource collector in a position biased towards the nearest resource
+	 */
+	public void produceCollectorStrategy() {
 		// Drop a collector
 		// Put a worker in the position closest to a resource
 		Unit closestResource = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getType().isResource);
@@ -452,7 +366,11 @@ public class UnitThinker {
 		action = new TrainWithPreferredTile(unit, units.worker, trainX, trainY);
 	}
 	
-	public void baseProduceRusherStrategy() {
+	/**
+	 * \brief Produces a rushing worker in a position towards the enemy
+	 * \param type the type of unit to produce
+	 */
+	public void produceRusherStrategy(UnitType type) {
 		// Train a unit closest to the closest enemy
 		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
 		
@@ -460,21 +378,9 @@ public class UnitThinker {
 			action = new TrainWithPreferredTile(unit, units.worker, closestEnemy.getX(), closestEnemy.getY());	
 		} else {
 			// OK....uh, train a unit wherever then.
-			action = new Train(unit, units.worker);
+			action = new Train(unit, type);
 		}
 		
-	}
-	
-	public void barracksProduceRangedStrategy() {
-		// Train a unit closest to the closest enemy
-		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
-		
-		if (closestEnemy != null) {
-			action = new TrainWithPreferredTile(unit, units.ranged, closestEnemy.getX(), closestEnemy.getY());	
-		} else {
-			// OK....uh, train a unit wherever then.
-			action = new Train(unit, units.worker);
-		}
 	}
 	
 	/**
@@ -543,7 +449,10 @@ public class UnitThinker {
 		}
 	}
 	
-	// AttackVulnerableNeighbourStrategy
+	/**
+	 * Attacks vulnerable nearby enemies (TODO)
+	 * \return
+	 */
 	public boolean attackVulnerableEnemyStrategy() {
 		// Find an enemy that would be vulnerable if they are a charger
 		List<Unit> enemies = units.findUnits((Unit u) -> units.isEnemy(u) && MapUtils.distance(u,  unit) == 2);
@@ -553,7 +462,7 @@ public class UnitThinker {
 	}
 	
 	/**
-	 * \brief Aggressively attacks the closest enemy. This highly original strategy is (c) LouisBottomBotButtons
+	 * \brief Aggressively attacks the closest enemy. This highly original strategy is (c) DrLouisman
 	 */
 	public void rangedTempStrategy() {
 		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
@@ -570,8 +479,10 @@ public class UnitThinker {
 			action = new DoNothing(unit, 1);
 		}
 	}
-	
-	// Do a tree search to find an optimal direction to run away
+
+	/**
+	 * \brief Do a tree search to find the optimal way to run away. Last resort. (TODO for extra marks)
+	 */
 	public void scoobyShaggyStrategy() {
 		// Create a tree containing GameStates with positions of nearby units
 		// Explore all possible combinations of moves for each opponent

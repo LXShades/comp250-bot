@@ -14,14 +14,14 @@ import rts.UnitActionAssignment;
 import rts.units.Unit;
 
 public class UnitUtils {
-	// Unit type references for comparisons
-    public UnitType worker;
-    public UnitType base;
-    public UnitType resource;
-    public UnitType barracks;
-    public UnitType light;
-    public UnitType heavy;
-    public UnitType ranged;
+	// References to each unit type
+    public UnitType worker;   /**< workers */
+    public UnitType base;     /**< bases */
+    public UnitType resource; /**< resources */
+    public UnitType barracks; /**< barracks...es */
+    public UnitType light;    /**< light units */
+    public UnitType heavy;    /**< heavy units */
+    public UnitType ranged;   /**< ranged units*/
     
     private int playerId; /**< The player owning this unit utils */
     private GameState gs; /**< The gamestate on the last tick */
