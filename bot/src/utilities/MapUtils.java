@@ -1,7 +1,9 @@
 package utilities;
 
+import ai.abstraction.pathfinding.PathFinding;
 import rts.GameState;
 import rts.PhysicalGameState;
+import rts.ResourceUsage;
 import rts.UnitAction;
 import rts.units.Unit;
 
@@ -240,5 +242,19 @@ public class MapUtils {
 	public static boolean tileIsFree(int x, int y, GameState gs) {
 		PhysicalGameState pgs = gs.getPhysicalGameState();
 		return (x >= 0 && y >= 0 && x < pgs.getWidth() && y < pgs.getHeight() && gs.free(x, y));
+	}
+	
+	/**
+	 * \brief Returns whether a path currently exists between two points
+	 * \param unit the unit at the starting position
+	 * \param targetX the destination X position
+	 * \param targetY the destination Y position
+	 * \param pf a pathfinding method
+	 * \param gs the current gamestate
+	 * \return whether a valid path exists
+	 */
+	public static boolean doesPathExist(Unit start, int targetX, int targetY, PathFinding pf, GameState gs) {
+		ResourceUsage ru = new ResourceUsage();
+		return pf.pathToPositionInRangeExists(start, toPosition(targetX, targetY, gs), 1, gs, ru);
 	}
 }

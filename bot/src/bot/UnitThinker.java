@@ -126,9 +126,9 @@ public class UnitThinker {
 	public void workerCollectStrategy() {
 		// Go collect resources and stuff
 		Unit closestResource = null, closestBase = null;
-
+		
 		// Find the closest relevant units
-		closestResource = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getType().isResource);
+		closestResource = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getType().isResource && MapUtils.doesPathExist(unit, u.getX(), u.getY(), pathFinding, gameState));
 		closestBase = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isBase(u) && !units.isEnemy(u));
 
 		DebugUtils.setUnitLabel(unit, "just doing my job sir");
@@ -139,24 +139,9 @@ public class UnitThinker {
 					// If there is not an immediately neighbouring base, go to the tile on the base
 					// that is closest to a resource
 					int targetBaseX = closestBase.getX(), targetBaseY = closestBase.getY();
-					int neighbourPositions[] = new int[] { targetBaseX - 1, targetBaseY, targetBaseX + 1, targetBaseY,
-							targetBaseX, targetBaseY - 1, targetBaseX, targetBaseY + 1 };
-
-					// Find the tile closest to both the base and resource
-					int closestPositionIndex = 0, closestPositionDistance = 99999;
-					for (int i = 0; i < 4; i++) {
-						int positionDistance = MapUtils.distance(closestResource, neighbourPositions[i * 2],
-								neighbourPositions[i * 2 + 1]);
-
-						if (MapUtils.tileIsFree(neighbourPositions[i * 2], neighbourPositions[i * 1 + 1], gameState) && positionDistance < closestPositionDistance) {
-							closestPositionDistance = positionDistance;
-							closestPositionIndex = i;
-							break;
-						}
-					}
 
 					// Move to the best tile next to the base
-					moveSafely(neighbourPositions[closestPositionIndex * 2], neighbourPositions[closestPositionIndex * 2 + 1], 0, 2);
+					moveSafely(targetBaseX, targetBaseY, 1, 2);
 					DebugUtils.setUnitLabel(unit, "travelling home~");
 				} else {
 					// We're next to a base! Install our resources into the base
@@ -179,7 +164,7 @@ public class UnitThinker {
 	public void workerBuildBarracksStrategy() {
 		// Only build if we're not already building/doing something
 		if (units.getAction(unit) == null) {
-			List<Unit> bases = units.findUnits((Unit u) -> units.isBase(u));
+			List<Unit> bases = units.findUnits((Unit u) -> units.isBase(u) && !units.isEnemy(u));
 			Unit base = bases.size() > 0 ? bases.get(0) : null;
 			GameState gs = units.getGameState();
 			PhysicalGameState pgs = gs.getPhysicalGameState();

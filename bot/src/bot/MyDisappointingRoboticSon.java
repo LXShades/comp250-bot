@@ -79,37 +79,52 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		synchroniseUnitThinkers();
 
 		// Begin an evil strategy!?
-		Unit ourBase = units.findClosestUnit(0, 0, (Unit u) -> units.isBase(u));
 		GameEvaluator eval = new GameEvaluator(playerId, gs, units);
-		boolean isSafeToBuildBarracks = MapUtils.getDangerTime(ourBase.getX(), ourBase.getY(), 1, units) > 80;
-		boolean wannaBuildBarracks = ourBase != null && isSafeToBuildBarracks && eval.numBarracks == 0 && eval.numBuildingBarracks == 0;
-		boolean canBuildBarracks = wannaBuildBarracks && eval.numAvailableResources > units.barracks.cost;
 		int numWorkersCollectingStuff = 0;
-		int numUsableResources = gs.getPlayer(player).getResources();
 		int numBrothers = 0;
 		Unit brothers[] = new Unit[2];
 
+		List<Unit> ourBases = units.findUnits((Unit u) -> units.isBase(u) && !units.isEnemy(u));
 		List<Unit> enemyBases = units.findUnits((Unit u) -> units.isEnemy(u) && units.isBase(u));
 		List<Unit> targetedEnemies = new LinkedList<Unit>();
-		Unit enemyBase = null;
+		Unit ourBase = null, enemyBase = null;
 
 		if (enemyBases.size() > 0) {
 			enemyBase = enemyBases.get(0);
 		}
+		if (ourBases.size() > 0) {
+			ourBase = ourBases.get(0);
+		}
 
+		// Ensure the enemy base can be reached
+		boolean doesPathExistToEnemies = true;
+		if (ourBase != null && enemyBase != null) {
+			 doesPathExistToEnemies = MapUtils.doesPathExist(ourBase, enemyBase.getX(), enemyBase.getY(), pf, gs);
+		}
+		
+		boolean isSafeToBuildBarracks = true;//MapUtils.getDangerTime(ourBase.getX(), ourBase.getY(), 1, units) > 80;
+		boolean wannaBuildBarracks = ourBase != null && isSafeToBuildBarracks && eval.numBarracks == 0 && eval.numBuildingBarracks == 0;
+		boolean canBuildBarracks = wannaBuildBarracks && eval.numAvailableResources > units.barracks.cost;
+		int numCollectorsRequired = 1;
+		
+		if (wannaBuildBarracks && eval.numAvailableResources < units.barracks.cost) {
+			numCollectorsRequired = 2;
+		}
+		
 		// doBuildBarracks = false; // temp: disable barracks build
 
+		// Assign actions to all units
 		for (Unit unit : pgs.getUnits()) {
 			if (unit.getPlayer() == player) {
 				UnitThinker thinker = unitThinkers.get(unit);
 
 				if (units.isWorker(unit)) {
-					if ((numWorkersCollectingStuff == 0 || (wannaBuildBarracks && numWorkersCollectingStuff < 2)) && eval.numBase > 0) {
+					if (numWorkersCollectingStuff < numCollectorsRequired && eval.numBase > 0) {
 						// This worker will collect resources for the base
 						thinker.strategy = () -> thinker.workerCollectStrategy();
 
 						numWorkersCollectingStuff++;
-					} else if (numWorkersCollectingStuff > 0 && canBuildBarracks) {
+					} else if (canBuildBarracks) {
 						// This worker will build barracks!
 						thinker.strategy = () -> thinker.workerBuildBarracksStrategy();
 
@@ -124,10 +139,10 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 						// TODO select the most appropriate unit for each task
 						canBuildBarracks = false;
 						wannaBuildBarracks = false;
-					} else if (numBrothers < 2) {
+					} else if (doesPathExistToEnemies && numBrothers < 2) {
 						// This worker is a brother candidate (test)
 						brothers[numBrothers++] = unit;
-					} else {
+					} else if (doesPathExistToEnemies) {
 						// Attack the closest enemy
 						Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(),
 								(Unit u) -> u.getPlayer() != player && u.getPlayer() != -1);
@@ -139,12 +154,17 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 
 							targetedEnemies.add(closestEnemy);
 						}
+					} else {
+						// Collect more stuff because there's no path to the enemy
+						thinker.strategy = () -> thinker.workerCollectStrategy();
+						
+						DebugUtils.setUnitLabel(unit, "WHAT");
 					}
 				}
 
 				if (units.isBase(unit)) {
 					if (units.getAction(unit) == null) {
-						if (eval.numAvailableResources >= units.worker.cost) {
+						if (eval.numAvailableResources >= units.worker.cost && (doesPathExistToEnemies || eval.numWorker < 2)) {
 							// Produce a worker
 							if (eval.numWorker == 0) {
 								thinker.strategy = () -> thinker.produceCollectorStrategy();
