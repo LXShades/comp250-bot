@@ -24,8 +24,13 @@ public class TrainWithPreferredTile extends AbstractAction {
     int targetY; /**< The desired Y position to train towards */
     
     boolean completed = false; /**< Whether the action has been completed */
-    
-    // Train with a preferred tile (as a relative direction)
+
+    /**
+     * \brief Train with a preferred tile to do it on, as a direction
+     * \param u unit to train the unit
+     * \param a_type the type of unit to be trained
+     * \param direction the preferred direction to train the unit in
+     */
     public TrainWithPreferredTile(Unit u, UnitType a_type, int direction) {
         super(u);
         unit = u;
@@ -36,6 +41,13 @@ public class TrainWithPreferredTile extends AbstractAction {
         targetY = unit.getY() + UnitAction.DIRECTION_OFFSET_Y[direction];
     }
     
+    /**
+     * \brief Train with a preferred tile, as a target position (not restricted to the immediate neighbours) 
+     * \param u the unit to train the unit
+     * \param a_type the type of unit to be trained
+     * \param destinationX the X coordinate towards which the training is preferred
+     * \param destinationY the Y coordinate towards which the training is preferred
+     */
     // Train with a preferred tile (as a destination position to travel to)
     public TrainWithPreferredTile(Unit u, UnitType a_type, int destinationX, int destinationY) {
         super(u);

@@ -4,10 +4,15 @@ import java.util.HashMap;
 
 import rts.units.Unit;
 
+/**
+ * \brief A set of debugging utilities for testing purposes
+ * \author Louis
+ *
+ */
 public class DebugUtils {
-	private static boolean isPaused = false;
+	private static boolean isPaused = false; /**< Whether the game is paused. Only works with visualisation mods */
 	
-	private static HashMap<Unit, String> unitLabels = new HashMap<Unit, String>();
+	private static HashMap<Unit, String> unitLabels = new HashMap<Unit, String>(); /**< Visual per-unit labels for debugging */
 	
 	/**
 	 * \brief Prints a debug message in the console

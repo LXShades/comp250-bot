@@ -13,6 +13,11 @@ import rts.UnitAction;
 import rts.UnitActionAssignment;
 import rts.units.Unit;
 
+/***
+ * \brief A set of per-player utilities based around the units owned by that player
+ * \author Louis
+ *
+ */
 public class UnitUtils {
 	// References to each unit type
     public UnitType worker;   /**< workers */

@@ -9,6 +9,11 @@ import rts.ResourceUsage;
 import rts.UnitAction;
 import rts.units.Unit;
 
+/***
+ * \brief Static map-oriented utilities
+ * \author Louis
+ *
+ */
 public class MapUtils {
 	/**
 	 * \brief Converts a coordinate pair to a position

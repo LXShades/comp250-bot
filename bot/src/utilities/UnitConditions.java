@@ -10,5 +10,10 @@ import rts.units.Unit;
  */
 @FunctionalInterface
 public interface UnitConditions {
+	/**
+	 * \brief Whether the unit meets the conditions defined by this implementation
+	 * \param u the unit to check
+	 * \return whether it meets the conditions defined by this implementation
+	 */
 	boolean meetsConditions(Unit u);
 }

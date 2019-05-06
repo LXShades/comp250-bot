@@ -20,8 +20,12 @@ public class DoNothing extends AbstractAction {
     int waitDuration; /**< How long we'll wait for */
     
     boolean completed = false; /**< Whether this action has been completed */
-    
-    // Wait for the given period
+
+    /**
+     * \brief Wait for the given duration
+     * \param u the unit to wait
+     * \param duration how long to wait for, in game ticks
+     */
     public DoNothing(Unit u, int duration) {
         super(u);
         

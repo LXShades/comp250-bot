@@ -34,6 +34,11 @@ import utilities.MapUtils;
 import utilities.DebugUtils;
 import utilities.UnitUtils;
 
+/**
+ * \brief A disappointing robotic son who coordinates his own legion of workers and ranged units to their doom against ever-advancing warbots
+ * \author Louis
+ *
+ */
 public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 	private UnitTypeTable utt; /** < Unit type table stored for clones */
 

@@ -304,8 +304,9 @@ public class UnitThinker {
 	}
 
 	/**
-	 * \brief Attacks neighbours Or potential neighbours
+	 * \brief Attacks neighbours, or potential neighbours that may attack before we can move
 	 * \param onlyIfDangerous if true, only attacks enemies that can attack
+	 * \param maxWaitTime the maximum amount of time to wait before attacking. 
 	 * \return whether the strategy was undertaken
 	 */
 	public boolean attackNeighbourStrategy(boolean onlyIfDangerous, int maxWaitTime) {
@@ -405,6 +406,7 @@ public class UnitThinker {
 	
 	/**
 	 * \brief Attempts to brush by a naive enemy, killing it in a timing attack
+	 * \param target the enemy to chase
 	 */
 	public void driveByStrategy(Unit target) {
 		if (units.getAction(unit) != null) {
@@ -529,7 +531,7 @@ public class UnitThinker {
 	 * \param targetX the X position of the target
 	 * \param targetY the Y position of the target
 	 * \param range how close to the target to arrive at
-	 * \param maxWaitTime how long will we wait for a tile to become safe before we take another? (TODO)
+	 * \param maxWaitTime how long may we wait for a tile to become safe before we take another?
 	 * \return whether the strategy was undertaken
 	 */
 	public boolean moveSafely(int targetX, int targetY, int range, int maxWaitTime) {
@@ -614,9 +616,9 @@ public class UnitThinker {
 	}
 	
 	/**
-	 * Runs a literal bait-and-switch strategy, where one brother baits an enemy into attacking, while the other leaps in to finish them off
-	 * \param this unit's loyal companion
-	 * \param the most likely (but not guaranteed!) next victim of the pair
+	 * \brief Runs a bait-and-switch strategy, where one brother baits an enemy into attacking, while the other leaps in to finish them off
+	 * \param myBrother this unit's loyal companion
+	 * \param victim the most likely (but not guaranteed!) next victim of the pair
 	 */
 	public void brotherStrategy(Unit myBrother, Unit victim) {
 		if (units.getAction(unit) != null) {
@@ -733,7 +735,7 @@ public class UnitThinker {
 	}
 	
 	/**
-	 * \brief Moves away from the base
+	 * \brief Moves away from the base as far as possible
 	 */
 	public void vacateBaseStrategy() {
 		if (units.getAction(unit) != null) {

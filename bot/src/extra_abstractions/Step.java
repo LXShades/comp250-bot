@@ -21,6 +21,11 @@ public class Step extends AbstractAction {
     
     boolean completed = false; /**< Whether the action has been completed, usually instant */
     
+    /**
+     * \brief Step once in the given direction
+     * \param u the unit to setp
+     * \param direction the direction to step in
+     */
     public Step(Unit u, int direction) {
         super(u);
         
