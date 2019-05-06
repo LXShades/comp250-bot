@@ -258,7 +258,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		}
 
 		// Testing: Try advanced strategies with frontmost workers
-		int numBrothersRequired = (eval.numWorker + eval.numRanged) >= 5 ? 2 : 0;
+		/*int numBrothersRequired = (eval.numWorker + eval.numRanged) >= 5 ? 2 : 0;
 		int numDriveBysRequired = (eval.numWorker + eval.numRanged) >= 5 ? 1 : 0;  
 		
 		// Brothers go first
@@ -288,7 +288,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 
 			broA.strategy = () -> broA.brotherStrategy(broB.getUnit(), closestEnemy);
 			broB.strategy = () -> broB.brotherStrategy(broA.getUnit(), closestEnemy);
-		}
+		}*/
 	}
 	
 	/**
