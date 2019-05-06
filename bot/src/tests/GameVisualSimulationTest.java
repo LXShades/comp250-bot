@@ -14,17 +14,29 @@ import ai.abstraction.RangedRush;
 import ai.abstraction.pathfinding.BFSPathFinding;
 import ai.mcts.naivemcts.NaiveMCTS;
 import bot.*;
+import gui.PhysicalGameStateJFrame;
 import gui.PhysicalGameStatePanel;
+import gui.frontend.FEStatePane;
 
+import java.awt.Component;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.awt.event.WindowEvent;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.OutputStreamWriter;
+import java.util.zip.ZipInputStream;
+
+import javax.swing.JFileChooser;
 import javax.swing.JFrame;
+
+import org.jdom.input.SAXBuilder;
+
 import java.awt.event.WindowListener;
 import rts.GameState;
 import rts.PhysicalGameState;
 import rts.PlayerAction;
+import rts.Trace;
 import rts.units.UnitTypeTable;
 import util.XMLWriter;
 import utilities.DebugUtils;
@@ -39,30 +51,44 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
 	private boolean slowDown;
 	
 	private boolean gameover = false;
+
+    Trace currentTrace = null;
+    int currentGameCycle = 0;
+    
+    PhysicalGameStatePanel statePanel = null;
+    
+    JFileChooser fileChooser = new JFileChooser();
+    FEStatePane stateTab = null;
 	
 	public GameVisualSimulationTest() throws Exception {
         UnitTypeTable utt = new UnitTypeTable();
         //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/8x8/bases8x8.xml", utt);
+        //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/10x10/basesWorkers10x10.xml", utt);
         //PhysicalGameState pgs = MapGenerator.basesWorkers8x8Obstacle();
         //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/12x12/basesWorkers12x12.xml", utt);
         PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/24x24/basesWorkers24x24.xml", utt);
+        //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/noWhereToRun9x8.xml", utt);
 
         GameState gs = new GameState(pgs, utt);
         int MAXCYCLES = 5000;
         int PERIOD = 20;
         
         //AI ai1 = new WorkerRush(utt, new BFSPathFinding());
-        AI ai1 = new MyDisappointingRoboticSon(utt);
-        AI ai2 = new WorkerRush(utt);
+        AI ai2 = new MyDisappointingRoboticSon(utt);
+        AI ai1 = new WorkerRush(utt);
         //AI ai2 = new LightRush(utt);
 
-        JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
+        PhysicalGameStateJFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
 //        JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_WHITE);
        
         // Make the world easier for myself, Louis, the almighty creator of the finest and highly tested robots.
         w.addWindowListener(this); // let me close the window without it still running!
         w.addKeyListener(this);    // let me fast-forward, slow down, and pause the game!
-        //PhysicalGameStatePanel.unitLabels = DebugUtils.getUnitLabels();
+        
+        // uncomment this to load an existing trace
+        //loadTrace();
+        // uncomment this to make it work on the server
+        PhysicalGameStatePanel.unitLabels = DebugUtils.getUnitLabels();
         
         long nextTimeToUpdate = System.currentTimeMillis() + PERIOD;
         boolean doFrameStep = false;
@@ -104,13 +130,21 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
             // Simulate!
             if (System.currentTimeMillis()>=nextTimeToUpdate) {
             	if (speed != 0) {
-	                PlayerAction pa1 = ai1.getAction(0, gs);
-	                PlayerAction pa2 = ai2.getAction(1, gs);
-	                gs.issueSafe(pa1);
-	                gs.issueSafe(pa2);
-	
-	                // simulate:
-	                gameover = gs.cycle();
+            		if (currentTrace == null) {
+            			// simulate the real game
+		                PlayerAction pa1 = ai1.getAction(0, gs);
+		                PlayerAction pa2 = ai2.getAction(1, gs);
+		                gs.issueSafe(pa1);
+		                gs.issueSafe(pa2);
+		
+		                // simulate:
+		                gameover = gs.cycle();
+            		} else {
+            	        GameState tmp_gs = currentTrace.getGameStateAtCycle(currentGameCycle++);
+            	        
+            	        w.setStateDirect(tmp_gs);
+            	        w.repaint();
+            		}
             	}
                 
                 w.repaint();
@@ -131,6 +165,14 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
     	new GameVisualSimulationTest();
     }
 
+    public void loadTrace() {
+        try {
+            currentTrace = new Trace(new SAXBuilder().build("..\\trace.xml").getRootElement());
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+    }
+    
 	@Override
 	public void keyPressed(KeyEvent arg0) {
 		// TODO Auto-generated method stub

@@ -107,7 +107,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		boolean canBuildBarracks = wannaBuildBarracks && eval.numAvailableResources > units.barracks.cost;
 		int numCollectorsRequired = 1;
 		
-		if (wannaBuildBarracks && eval.numAvailableResources < units.barracks.cost) {
+		if (wannaBuildBarracks && eval.numAvailableResources < units.barracks.cost + 3) {
 			numCollectorsRequired = 2;
 		}
 		

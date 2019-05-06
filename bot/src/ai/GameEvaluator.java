@@ -1,5 +1,7 @@
 package ai;
 
+import java.util.ArrayList;
+
 import rts.GameState;
 import rts.units.Unit;
 import rts.units.UnitType;
@@ -13,7 +15,7 @@ import utilities.UnitUtils;
  *
  */
 public class GameEvaluator {
-	private int playerId;
+	private int playerId; /**< ID of the player owning this evaluation */
 	
 	// Unit counts for this player
 	public int numBarracks = 0; /**< Number of barracks */

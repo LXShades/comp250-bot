@@ -25,6 +25,7 @@ public class UnitUtils {
     
     private int playerId; /**< The player owning this unit utils */
     private GameState gs; /**< The gamestate on the last tick */
+   
     
     /**
      * \brief Initialises the unit utilities

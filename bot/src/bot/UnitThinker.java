@@ -364,7 +364,7 @@ public class UnitThinker {
 		}
 		
 		// Attack vulnerable neighbours
-		if (attackNeighbourStrategy(false, 5)) {
+		if (attackNeighbourStrategy(false, 10)) {
 			DebugUtils.setUnitLabel(unit, "[DeathDance] attacking");
 			return;
 		}
