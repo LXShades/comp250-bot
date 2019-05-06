@@ -508,11 +508,11 @@ public class UnitThinker {
 	 * \param type the type of unit to produce
 	 */
 	public void produceRusherStrategy(UnitType type) {
-		// Train a unit closest to the closest enemy
-		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
+		// Train a unit furthest from the resources
+		Unit closestResource = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> u.getType().isResource);
 		
-		if (closestEnemy != null) {
-			action = new TrainWithPreferredTile(unit, type, closestEnemy.getX(), closestEnemy.getY());	
+		if (closestResource != null) {
+			action = new TrainWithPreferredTile(unit, type, unit.getX() - (closestResource.getX() - unit.getX()), unit.getY() - (closestResource.getY() - unit.getY()));	
 		} else {
 			// OK....uh, train a unit wherever then.
 			action = new Train(unit, type);
