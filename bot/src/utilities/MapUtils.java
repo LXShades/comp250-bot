@@ -22,7 +22,7 @@ public class MapUtils {
 	}
 	
 	/**
-	 * \breif Converts an int position to an X coordinate
+	 * \brief Converts an int position to an X coordinate
 	 * \param position the position to convert
 	 * \param gs the current gamestate
 	 * \return the X coordinate of the position
@@ -306,7 +306,7 @@ public class MapUtils {
 	}
 	
 	/**
-	 * Returns the position of a unit's single step in 'stepDirection'
+	 * \brief Returns the position of a unit's single step in 'stepDirection'
 	 * \param unit the unit to start at
 	 * \param stepDirection the direction to step in
 	 * \param gs the current GameState

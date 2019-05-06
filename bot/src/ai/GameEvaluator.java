@@ -110,11 +110,21 @@ public class GameEvaluator {
 			}
 		}
 		
-		// Determine whether there is a path to the enemy base
+		// Determine whether there is a path to the enemy
 		if (units.myBase != null && units.enemyBase != null) {
-			doesPathToEnemyExist = MapUtils.doesPathExist(units.myBase, units.enemyBase.getX(), units.enemyBase.getY(), new AStarPathFinding(), gs);
+			doesPathToEnemyExist = false;
+			
+			for (Unit enemy : units.enemies) {
+				for (Unit ally : units.myUnits) {
+					if (MapUtils.doesPathExist(enemy, ally.getX(), ally.getY(), new AStarPathFinding(), gs)) {
+						doesPathToEnemyExist = true;
+						break;
+					}					
+				}
+			}
 		} else {
 			doesPathToEnemyExist = true; // we'll assume someone killed their base, or perhaps there are no bases
 		}
 	}
 }
+ 

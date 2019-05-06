@@ -81,8 +81,6 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 
 		// Begin an evil strategy!?
 		GameEvaluator eval = new GameEvaluator(playerId, gs, units);
-		int numBrothers = 0;
-		Unit brothers[] = new Unit[2];
 
 		// Assign default action to all units
 		for (Unit unit : units.myUnits) {
@@ -94,19 +92,6 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 
 		// --- Coordinate the other attackers ---
 		coordinateAttackers(eval);
-		
-		// BROTHERS STRATEGY
-		if (numBrothers == 2) {
-			Unit closestEnemy = units.findClosestUnit(brothers[0].getX(), brothers[0].getY(), (Unit u) -> units.isEnemy(u));
-			UnitThinker brotherA = unitThinkers.get(brothers[0]);
-			UnitThinker brotherB = unitThinkers.get(brothers[1]);
-
-			// Okay, ninjas are better after all
-			brotherA.strategy = () -> brotherA.ninjaWarriorStrategy(null);
-			brotherB.strategy = () -> brotherB.ninjaWarriorStrategy(null);
-			
-			brotherA.strategy = () -> brotherA.driveByStrategy(closestEnemy);
-		}
 		
 		// Coordinate misc
 		for (Unit unit : units.myUnits) {
@@ -185,7 +170,9 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 	 */
 	private void coordinateWorkers(GameEvaluator eval) {
 		Unit closestResource = units.myBase != null ? units.findClosestUnit(units.myBase.getX(), units.myBase.getY(), (Unit u) -> units.isResource(u)) : null;
-		boolean isSafeToBuildBarracks = units.myBase != null ? MapUtils.getDangerTime(units.myBase.getX(), units.myBase.getY(), 1, units) > 80 : false;
+		boolean isSafeToBuildBarracks 
+						= units.myBase != null ? MapUtils.getDangerTime(units.myBase.getX(), units.myBase.getY(), 1, units) > 80 : false
+						  || !eval.doesPathToEnemyExist;
 		boolean wannaBuildBarracks = units.myBase != null && isSafeToBuildBarracks && eval.numBarracks == 0 && eval.numBuildingBarracks == 0;
 		boolean canBuildBarracks = wannaBuildBarracks && eval.numAvailableResources > units.barracks.cost;
 		int numCollectorsRequired = 1;
@@ -239,7 +226,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 			}
 
 			// Assign barracks builders
-			else if ((canBuildBarracks && eval.numBuildingBarracks == 0 && worker.getResources() == 0) || thinker.role.equals("build")) {
+			else if ((canBuildBarracks && eval.numBuildingBarracks == 0) || thinker.role.equals("build")) {
 				thinker.strategy = () -> thinker.workerBuildBarracksStrategy();
 				thinker.role = "build";
 				

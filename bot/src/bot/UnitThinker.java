@@ -747,7 +747,7 @@ public class UnitThinker {
 		Unit myBase = units.findFirstUnit((Unit u) -> units.isBase(u) && !units.isEnemy(u));
 		
 		if (myBase != null) {
-			float bestDistance = 0;
+			float bestDistance = MapUtils.euclideanDistance(unit, myBase.getX(), myBase.getY());
 			int targetX = unit.getX(), targetY = unit.getY();
 			for (int i = 0; i < 4; i++) {
 				int tileX = unit.getX() + UnitAction.DIRECTION_OFFSET_X[i], tileY = unit.getY() + UnitAction.DIRECTION_OFFSET_Y[i];
@@ -768,7 +768,7 @@ public class UnitThinker {
 				DebugUtils.setUnitLabel(unit, "[vacate] move");
 			} else {
 				action = new DoNothing(unit, 1);
-				DebugUtils.setUnitLabel(unit,  "[vacate] blocked");
+				DebugUtils.setUnitLabel(unit, "[vacate] blocked");
 			}
 		} else {
 			// todo?

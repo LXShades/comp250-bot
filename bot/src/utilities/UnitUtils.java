@@ -26,6 +26,7 @@ public class UnitUtils {
     // Unit lists (note: only as many as my bot needs)
     public ArrayList<Unit> myUnits = new ArrayList<Unit>(); /**< units owned by this player */
     public ArrayList<Unit> myWorkers = new ArrayList<Unit>(); /**< workers owned by this player */
+    public ArrayList<Unit> enemies = new ArrayList<Unit>(); /**< enemies to this player */
     
     public Unit myBase = null; /**< Our base on the map, or the base with the lowest ID if there are multiple */
     public Unit enemyBase = null; /**< The enemy base on the map, or the base with the lowest ID if there are multiple */
@@ -62,8 +63,9 @@ public class UnitUtils {
     	// Refresh unit lists
     	myUnits.clear();
     	myWorkers.clear();
+    	enemies.clear();
     	
-    	// Fill unit list with specific prefetched information
+    	// Fill relevant unit lists
     	for (Unit u : gs.getUnits()) {
     		if (u.getPlayer() == playerId) {
     			myUnits.add(u);
@@ -73,7 +75,9 @@ public class UnitUtils {
     			} else if (u.getType() == base) {
     				myBase = u;
     			}
-    		} else {
+    		} else if (u.getPlayer() != -1){
+    			enemies.add(u);
+    			
     			if (u.getType() == base) {
     				enemyBase = u;
     			}
