@@ -316,6 +316,7 @@ public class UnitThinker {
 		if (timeUntilDeath <= unit.getMoveTime() || !onlyIfDangerous) {
 			// Choose an enemy to attack. Ideally the one with the lowest HP
 			Unit bestEnemyToAttack = null;
+			int bestEnemyArrivalTime = Integer.MAX_VALUE;
 			
 			for (Unit enemy : gameState.getPhysicalGameState().getUnitsAround(unit.getX(), unit.getY(), unit.getAttackRange() + 1)) {
 				if (!units.isEnemy(enemy)) {
@@ -331,8 +332,18 @@ public class UnitThinker {
 					if ((enemy.getAttackTime() >= unit.getAttackTime() || !enemy.getType().canAttack)) {
 						// Kill the most violent enemies first
 						if (bestEnemyToAttack == null || (bestEnemyToAttack != null && enemy.getType().canAttack && !bestEnemyToAttack.getType().canAttack)) {
-							// Attack this enemy
-							bestEnemyToAttack = enemy;
+							// Kill the enemy that arrives soonest
+							int arrivalTime = 0;
+							
+							if (units.getAction(enemy) != null && units.getAction(enemy).getType() == UnitAction.TYPE_MOVE) {
+								arrivalTime = units.timeToFinishAction(enemy);
+							}
+							
+							if (arrivalTime <= bestEnemyArrivalTime) {
+								// Attack this enemy
+								bestEnemyToAttack = enemy;
+								bestEnemyArrivalTime = arrivalTime;
+							}
 						}
 					}
 				}

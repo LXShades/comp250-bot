@@ -9,40 +9,60 @@ public class DebugUtils {
 	
 	private static HashMap<Unit, String> unitLabels = new HashMap<Unit, String>();
 	
-	// Prints a debug message
+	/**
+	 * \brief Prints a debug message in the console
+	 * \param text message to print
+	 */
 	public static void print(String text) {
 		System.out.print(text + "\n");
 	}
 	
+	/**
+	 * \brief Sets the label of a unit. Only works with visualisation mods
+	 * \param u the unit to set the label
+	 * \param label the label text to assign
+	 */
 	public static void setUnitLabel(Unit u, String label) {
 		unitLabels.put(u, label);
 	}
-	
-	// Returns the map of debug unit labels (displayed above the units)
+
+	/**
+	 * \brief Returns the map of debug labels by unit
+	 */
 	public static HashMap<Unit, String> getUnitLabels() {
 		return unitLabels;
 	}
 	
-	// Pauses the simulation, only works in custom GameVisualSimulationTest
+	/**
+	 * \brief Pauses the simulation. Only works with visualisation mods
+	 */
 	public static void pause() {
 		isPaused = true;
 
 		print("Paused");
 	}
 	
-	// Pauses the simulation, displaying a custom pause message
+	/**
+	 * \brief Pauses the simulation, showing a custom message. Only works with visualisation mods
+	 * \param pauseMessage A message to show while paused
+	 */
 	public static void pause(String pauseMessage) {
 		isPaused = true;
 
 		print(pauseMessage);
 	}
 	
-	// Unpauses the simulation
+	/**
+	 * \brief Unpauses the simulation. Only works with visualisation mods
+	 */
 	public static void unpause() {
 		isPaused = false;
 	}
 	
-	// Returns whether the simulation is paused by the bot
+	/**
+	 * \brief Returns whether the game is paused. Only works with visualisation mods
+	 * \return whether the game is paused
+	 */
 	public static boolean isPaused() {
 		return isPaused;
 	}
