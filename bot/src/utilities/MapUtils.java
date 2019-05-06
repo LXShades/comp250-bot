@@ -111,6 +111,25 @@ public class MapUtils {
 	public static float euclideanDistance(Unit a, int x, int y) {
 		return (float)Math.sqrt((double)((a.getX() - x) * (a.getX() - x) + (a.getY() - y) * (a.getY() - y)));
 	}
+
+	/**
+	 * \brief Returns whether a position is within attacking range of a unit
+	 * \param a the attacking unit
+	 * \param x the X coordinate of the victim
+	 * \param y the Y coordinate of the victim
+	 * \return whether 
+	 */
+	public static boolean isInAttackRange(Unit a, int x, int y) {
+        if (a.getAttackRange() == 1) {
+        	// this is just the number of steps away
+        	return (Math.abs(a.getX() - x) + Math.abs(a.getY() - y)) == 1;
+        } else {
+        	// this is some fancy Euclidean shizzle
+        	int squareRange = a.getAttackRange() * a.getAttackRange();
+        	
+            return ((a.getX() - x) * (a.getX() - x) + (a.getY() - y) * (a.getY() - y)) <= squareRange;
+        }
+	}
 	
 	/**
 	 * Returns how quickly it would take to receive a certain amount of damage at the given tile, if every enemy unit attacked

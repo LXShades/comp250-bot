@@ -326,7 +326,7 @@ public class UnitThinker {
 				int enemyX = units.getXAfter(enemy, unit.getAttackTime()), enemyY = units.getYAfter(enemy, unit.getAttackTime());
 				
 				// Is this enemy close enough?
-				if (MapUtils.distance(unit, enemyX, enemyY) <= unit.getAttackRange()) {
+				if (MapUtils.isInAttackRange(unit, enemyX, enemyY)) {
 					// Can we kill it in time?
 					if ((enemy.getAttackTime() >= unit.getAttackTime() || !enemy.getType().canAttack)) {
 						// Kill the most violent enemies first
@@ -339,7 +339,7 @@ public class UnitThinker {
 			}
 			
 			// Decide what to do
-			if (bestEnemyToAttack != null && MapUtils.distance(unit, bestEnemyToAttack) == 1) {
+			if (bestEnemyToAttack != null && MapUtils.isInAttackRange(unit, bestEnemyToAttack.getX(), bestEnemyToAttack.getY())) {
 				// Attack now!
 				DebugUtils.setUnitLabel(unit, "[AtkNbr]: Attacking");
 				action = new Attack(unit, bestEnemyToAttack, pathFinding);
@@ -705,7 +705,7 @@ public class UnitThinker {
 		Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(), (Unit u) -> units.isEnemy(u));
 		
 		if (closestEnemy != null) {
-			if (attackNeighbourStrategy(false, 4)) {
+			if (attackNeighbourStrategy(false, unit.getMoveTime())) {
 				DebugUtils.setUnitLabel(unit, "[ranged] DIE!!");
 			} else {
 				DebugUtils.setUnitLabel(unit, "[ranged] CHASING!");

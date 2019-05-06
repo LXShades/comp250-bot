@@ -78,7 +78,7 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
         // Load bots
         //AI ai1 = new WorkerRush(utt, new BFSPathFinding());
         AI ai2 = new MyDisappointingRoboticSon(utt);
-        AI ai1 = new WorkerRush(utt);
+        AI ai1 = new RangedRush(utt);
         //AI ai2 = new LightRush(utt);
 
         PhysicalGameStateJFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
