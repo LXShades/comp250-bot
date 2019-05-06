@@ -242,7 +242,7 @@ public class UnitThinker {
 						}
 						
 						// Pick the position furthest from the enemies, but ideally at least two tiles from the base and resources
-						int heuristic = MapUtils.distance(tileX,  tileY, avoidX, avoidY) + Math.min(MapUtils.distance(myBase, tileX, tileY), 2);
+						int heuristic = Math.min(MapUtils.distance(tileX,  tileY, avoidX, avoidY), 2) + Math.min(MapUtils.distance(myBase, tileX, tileY), 2);
 
 						if (doesResourceExist) {
 							heuristic += Math.min(MapUtils.distance(units.findClosestUnit(tileX, tileY, (Unit u) -> units.isResource(u)), tileX, tileY), 2);
@@ -414,7 +414,7 @@ public class UnitThinker {
 		DebugUtils.setUnitLabel(unit, "[DriveBy]");
 		
 		// If there's no target, default to being a ninja
-		if (target == null || !target.getType().canMove) {
+		if (target == null || !target.getType().canMove || target.getAttackRange() > 1) {
 			ninjaWarriorStrategy(null);
 			return;
 		}
