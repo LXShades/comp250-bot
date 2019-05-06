@@ -309,46 +309,55 @@ public class UnitThinker {
 			return false;
 		}
 		
-		// Find a neighbouring enemy to attack
-		List<Unit> enemyToAttack = units.findUnits((Unit e) -> units.isEnemy(e) && MapUtils.distance(e, unit) <= unit.getAttackRange() + 1);
-		boolean isInDanger = false;
-		
-		for (Unit enemy : enemyToAttack) {
-			int enemyX = units.getXAfter(enemy, unit.getMoveTime()), enemyY = units.getYAfter(enemy, unit.getMoveTime()); 
-			
-			// Check if this enemy could attack us here before we can run (if onlyIfDangerous is true). Otherwise just check if we can attack it.
-			if ((MapUtils.distance(unit, enemyX, enemyY) <= enemy.getAttackRange() && units.timeToFinishAction(enemy) + enemy.getAttackTime() <= unit.getMoveTime()) 
-					|| !onlyIfDangerous) {
-				// We can't run in time (assuming the enemy attacks us)
-				if (enemy.getType().canAttack) {
-					isInDanger = true;
-				}
-				
-				// Check if we can actually attack this enemy before they kill us
-				// If we can't, don't bother trying - we could possibly attack something else instead
-				if (MapUtils.distance(unit, enemy) <= unit.getAttackRange()
-						&& ((enemy.getAttackTime() >= unit.getAttackTime() || !enemy.getType().canAttack)
-						||   unit.getHitPoints() > enemy.getMaxDamage())) {
-					// Attack this enemy
-					DebugUtils.setUnitLabel(unit, "[AtkNbr]: Attacking");
-					action = new Attack(unit, enemy, pathFinding);
-					return true;
-				}
-			}
-		}
+		// Determine danger level
+		int timeUntilDeath = MapUtils.getDangerTime(unit.getX(), unit.getY(), 1, units);
 		
 		// If no one was attacked, but there is a dangerous enemy approaching, wait for it to arrive and kill it
-		if (isInDanger) {
-			// Don't wait if we've waited too long
-			if (timeWaited > maxWaitTime) {
-				return false;
+		if (timeUntilDeath <= unit.getMoveTime() || !onlyIfDangerous) {
+			// Choose an enemy to attack. Ideally the one with the lowest HP
+			Unit bestEnemyToAttack = null;
+			
+			for (Unit enemy : gameState.getPhysicalGameState().getUnitsAround(unit.getX(), unit.getY(), unit.getAttackRange() + 1)) {
+				if (!units.isEnemy(enemy)) {
+					continue;
+				}
+				
+				// Figure out where the enemy will be in a moment
+				int enemyX = units.getXAfter(enemy, unit.getAttackTime()), enemyY = units.getYAfter(enemy, unit.getAttackTime());
+				
+				// Is this enemy close enough?
+				if (MapUtils.distance(unit, enemyX, enemyY) <= unit.getAttackRange()) {
+					// Can we kill it in time?
+					if ((enemy.getAttackTime() >= unit.getAttackTime() || !enemy.getType().canAttack)) {
+						// Kill the most violent enemies first
+						if (bestEnemyToAttack == null || (bestEnemyToAttack != null && enemy.getType().canAttack && !bestEnemyToAttack.getType().canAttack)) {
+							// Attack this enemy
+							bestEnemyToAttack = enemy;
+						}
+					}
+				}
 			}
 			
-			DebugUtils.setUnitLabel(unit, "[AtkNbr]: Waiting");
-			action = new DoNothing(unit, 1);
+			// Decide what to do
+			if (bestEnemyToAttack != null && MapUtils.distance(unit, bestEnemyToAttack) == 1) {
+				// Attack now!
+				DebugUtils.setUnitLabel(unit, "[AtkNbr]: Attacking");
+				action = new Attack(unit, bestEnemyToAttack, pathFinding);
+				return true;
+			} else if (bestEnemyToAttack != null) {
+				// Wait for this enemy to arrive
+				// Don't wait if we've waited too long
+				if (timeWaited > maxWaitTime) {
+					return false;
+				}
+				
+				DebugUtils.setUnitLabel(unit, "[AtkNbr]: Waiting");
+				action = new DoNothing(unit, 1);
+				return true;
+			}
 		}
 		
-		return isInDanger;
+		return false;
 	}
 	
 	/**
