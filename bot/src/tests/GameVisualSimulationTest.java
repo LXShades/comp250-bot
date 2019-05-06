@@ -77,8 +77,8 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
         
         // Load bots
         //AI ai1 = new WorkerRush(utt, new BFSPathFinding());
-        AI ai2 = new MyDisappointingRoboticSon(utt);
-        AI ai1 = new WorkerRush(utt);
+        AI ai1 = new MyDisappointingRoboticSon(utt);
+        AI ai2 = new CJBot(utt);
         //AI ai2 = new LightRush(utt);
 
         PhysicalGameStateJFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
@@ -88,7 +88,7 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
         w.addKeyListener(this);    // let me fast-forward, slow down, and pause the game!
         
         // uncomment this to load an existing trace
-       // loadTrace();
+        //loadTrace();
         
         // Set the debug labels if the capability exists
         for (Field field : PhysicalGameStatePanel.class.getFields()) {

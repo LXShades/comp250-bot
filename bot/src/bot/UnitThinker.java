@@ -329,21 +329,21 @@ public class UnitThinker {
 				// Is this enemy close enough?
 				if (MapUtils.isInAttackRange(unit, enemyX, enemyY)) {
 					// Can we kill it in time?
-					if ((enemy.getAttackTime() >= unit.getAttackTime() || !enemy.getType().canAttack)) {
-						// Kill the most violent enemies first
-						if (bestEnemyToAttack == null || (bestEnemyToAttack != null && enemy.getType().canAttack && !bestEnemyToAttack.getType().canAttack)) {
-							// Kill the enemy that arrives soonest
-							int arrivalTime = 0;
-							
-							if (units.getAction(enemy) != null && units.getAction(enemy).getType() == UnitAction.TYPE_MOVE) {
-								arrivalTime = units.timeToFinishAction(enemy);
-							}
-							
-							if (arrivalTime <= bestEnemyArrivalTime) {
+					if (enemy.getAttackTime() >= unit.getAttackTime() || !enemy.getType().canAttack) {
+						// Check when it'll arrive
+						int arrivalTime = 0;
+						
+						if (units.getAction(enemy) != null && units.getAction(enemy).getType() == UnitAction.TYPE_MOVE) {
+							arrivalTime = units.timeToFinishAction(enemy);
+						}
+						
+						// Kill the fastest, most violent enemies first
+						if (bestEnemyToAttack == null || 
+							(enemy.getType().canAttack && !bestEnemyToAttack.getType().canAttack) || 
+							(arrivalTime <= bestEnemyArrivalTime)) {
 								// Attack this enemy
 								bestEnemyToAttack = enemy;
 								bestEnemyArrivalTime = arrivalTime;
-							}
 						}
 					}
 				}
