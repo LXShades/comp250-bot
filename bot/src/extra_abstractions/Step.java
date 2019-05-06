@@ -10,17 +10,17 @@ import rts.units.Unit;
 import rts.units.UnitType;
 import util.XMLWriter;
 
+/**
+ * \brief Makes the unit step once in the given direction
+ *
+ */
 public class Step extends AbstractAction {
 	// Unit information
-    UnitType type;
-    Unit unit;
+    Unit unit; /**< The unit being moved */
+    int moveDirection; /**< The direction being moved in */
     
-    // Which direction to move in
-    int moveDirection;
+    boolean completed = false; /**< Whether the action has been completed, usually instant */
     
-    boolean completed = false;
-    
-    // Wait for the given period
     public Step(Unit u, int direction) {
         super(u);
         
@@ -35,13 +35,11 @@ public class Step extends AbstractAction {
     
     public boolean equals(Object o)
     {
-        if (!(o instanceof Train)) return false;
-        TrainWithPreferredTile a = (TrainWithPreferredTile)o;
-        if (type != a.type) return false;
+        if (!(o instanceof Step)) return false;
+        Step a = (Step)o;
         
-        return true;
+        return this.moveDirection == a.moveDirection && this.unit == a.unit;
     }
-    
     
     public void toxml(XMLWriter w)
     {
@@ -60,5 +58,13 @@ public class Step extends AbstractAction {
         	// Move not possible, wait instead
         	return new UnitAction(UnitAction.TYPE_NONE, 1);
         }
+    }
+    
+    /**
+     * \brief Returns the direction being moved towards
+     * @return
+     */
+    public int getDirection() {
+    	return this.moveDirection;
     }
 }

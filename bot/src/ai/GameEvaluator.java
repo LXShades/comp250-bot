@@ -2,10 +2,12 @@ package ai;
 
 import java.util.ArrayList;
 
+import ai.abstraction.pathfinding.AStarPathFinding;
 import rts.GameState;
 import rts.units.Unit;
 import rts.units.UnitType;
 import rts.UnitAction;
+import utilities.MapUtils;
 import utilities.UnitUtils;
 
 /**
@@ -41,6 +43,8 @@ public class GameEvaluator {
 	
 	public int numAvailableResources = 0; /**< The number of resources available to the player */
 	public int numTotalResources = 0; /**< The number of resources total */
+	
+	public boolean doesPathToEnemyExist; /**< Whether there is a path to the enemy base */
 	
 	/**
 	 * Instantiates a GameEvaluator with a basic evaluation of the player's state
@@ -104,6 +108,13 @@ public class GameEvaluator {
 			else if (units.isRanged(u)) {
 				numRanged++;
 			}
+		}
+		
+		// Determine whether there is a path to the enemy base
+		if (units.myBase != null && units.enemyBase != null) {
+			doesPathToEnemyExist = MapUtils.doesPathExist(units.myBase, units.enemyBase.getX(), units.enemyBase.getY(), new AStarPathFinding(), gs);
+		} else {
+			doesPathToEnemyExist = true; // we'll assume someone killed their base, or perhaps there are no bases
 		}
 	}
 }

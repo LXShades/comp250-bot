@@ -11,15 +11,19 @@ import rts.units.UnitType;
 import util.XMLWriter;
 import utilities.MapUtils;
 
+/**
+ * \brief Trains a unit with a preference for a particular direction
+ *
+ */
 public class TrainWithPreferredTile extends AbstractAction {
 	// Unit information
-    UnitType type;
-    Unit unit;
+    Unit unit; /**< The unit to train a unit */
+    UnitType type; /**< The type of unit to be trained */
     
-    // The direction the training will occur. Choo choo
-    int targetX, targetY;
+    int targetX; /**< The desired X position to train towards */
+    int targetY; /**< The desired Y position to train towards */
     
-    boolean completed = false;
+    boolean completed = false; /**< Whether the action has been completed */
     
     // Train with a preferred tile (as a relative direction)
     public TrainWithPreferredTile(Unit u, UnitType a_type, int direction) {
@@ -50,9 +54,8 @@ public class TrainWithPreferredTile extends AbstractAction {
     {
         if (!(o instanceof TrainWithPreferredTile)) return false;
         TrainWithPreferredTile a = (TrainWithPreferredTile)o;
-        if (type != a.type) return false;
         
-        return true;
+        return targetX == a.targetX && targetY == a.targetY && unit == a.unit && type == a.type;
     }
     
     
@@ -92,6 +95,14 @@ public class TrainWithPreferredTile extends AbstractAction {
         return new UnitAction(UnitAction.TYPE_NONE, 1);
     }
     
+    /**
+     * \brief Returns the Manhattan distance between two points
+     * \param aX the X coordinate of the first point
+     * \param aY the Y coordinate of the first point
+     * \param bX the X coordinate of the second point
+     * \param bY the Y coordinate of the second point
+     * \return the Manhattan distance between the two points
+     */
     private int distance(int aX, int aY, int bX, int bY) {
     	return Math.abs(aX - bX) + Math.abs(aY - bY);
     }

@@ -7,6 +7,7 @@ import ai.abstraction.Idle;
 import ai.abstraction.pathfinding.AStarPathFinding;
 import ai.core.AI;
 import ai.core.ParameterSpecification;
+import bot.UnitThinker.StrategyFunc;
 import extra_abstractions.DoNothing;
 import extra_abstractions.Step;
 import extra_abstractions.TrainWithPreferredTile;
@@ -80,122 +81,20 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 
 		// Begin an evil strategy!?
 		GameEvaluator eval = new GameEvaluator(playerId, gs, units);
-		int numWorkersCollectingStuff = 0;
 		int numBrothers = 0;
 		Unit brothers[] = new Unit[2];
 
-		List<Unit> ourBases = units.findUnits((Unit u) -> units.isBase(u) && !units.isEnemy(u));
-		List<Unit> enemyBases = units.findUnits((Unit u) -> units.isEnemy(u) && units.isBase(u));
-		List<Unit> targetedEnemies = new LinkedList<Unit>();
-		Unit ourBase = null, enemyBase = null;
-
-		if (enemyBases.size() > 0) {
-			enemyBase = enemyBases.get(0);
-		}
-		if (ourBases.size() > 0) {
-			ourBase = ourBases.get(0);
-		}
-
-		// Ensure the enemy base can be reached
-		boolean doesPathExistToEnemies = true;
-		if (ourBase != null && enemyBase != null) {
-			 doesPathExistToEnemies = MapUtils.doesPathExist(ourBase, enemyBase.getX(), enemyBase.getY(), pf, gs);
+		// Assign default action to all units
+		for (Unit unit : units.myUnits) {
+			unitThinkers.get(unit).strategy = null;
 		}
 		
-		boolean isSafeToBuildBarracks = true;//MapUtils.getDangerTime(ourBase.getX(), ourBase.getY(), 1, units) > 80;
-		boolean wannaBuildBarracks = ourBase != null && isSafeToBuildBarracks && eval.numBarracks == 0 && eval.numBuildingBarracks == 0;
-		boolean canBuildBarracks = wannaBuildBarracks && eval.numAvailableResources > units.barracks.cost;
-		int numCollectorsRequired = 1;
+		// --- Coordinate the workers ---
+		coordinateWorkers(eval);
+
+		// --- Coordinate the other attackers ---
+		coordinateAttackers(eval);
 		
-		if (wannaBuildBarracks && eval.numAvailableResources < units.barracks.cost + 3) {
-			numCollectorsRequired = 2;
-		}
-		
-		// doBuildBarracks = false; // temp: disable barracks build
-
-		// Assign actions to all units
-		for (Unit unit : pgs.getUnits()) {
-			if (unit.getPlayer() == player) {
-				UnitThinker thinker = unitThinkers.get(unit);
-
-				if (units.isWorker(unit)) {
-					if (numWorkersCollectingStuff < numCollectorsRequired && eval.numBase > 0) {
-						// This worker will collect resources for the base
-						thinker.strategy = () -> thinker.workerCollectStrategy();
-
-						numWorkersCollectingStuff++;
-					} else if (canBuildBarracks) {
-						// This worker will build barracks!
-						thinker.strategy = () -> thinker.workerBuildBarracksStrategy();
-
-						DebugUtils.setUnitLabel(unit, "Make barracks");
-						
-						// Update evaluation
-						eval.numAvailableResources -= units.barracks.cost;
-						eval.numBuildingBarracks++;
-						numWorkersCollectingStuff++;
-						
-						// We don't want to build barracks anymore
-						// TODO select the most appropriate unit for each task
-						canBuildBarracks = false;
-						wannaBuildBarracks = false;
-					} else if (doesPathExistToEnemies && numBrothers < 2) {
-						// This worker is a brother candidate (test)
-						brothers[numBrothers++] = unit;
-					} else if (doesPathExistToEnemies) {
-						// Attack the closest enemy
-						Unit closestEnemy = units.findClosestUnit(unit.getX(), unit.getY(),
-								(Unit u) -> u.getPlayer() != player && u.getPlayer() != -1);
-
-						if (closestEnemy != null && units.getAction(unit) == null) {
-							Unit enemyToTarget = enemyBase;
-							//thinker.strategy = () -> thinker.ninjaWarriorStrategy(enemyToTarget);
-							thinker.strategy = () -> thinker.driveByStrategy(enemyToTarget);
-
-							targetedEnemies.add(closestEnemy);
-						}
-					} else {
-						// Collect more stuff because there's no path to the enemy
-						thinker.strategy = () -> thinker.workerCollectStrategy();
-						
-						DebugUtils.setUnitLabel(unit, "WHAT");
-					}
-				}
-
-				if (units.isBase(unit)) {
-					if (units.getAction(unit) == null) {
-						if (eval.numAvailableResources >= units.worker.cost && (doesPathExistToEnemies || eval.numWorker < 2)) {
-							// Produce a worker
-							if (eval.numWorker == 0) {
-								thinker.strategy = () -> thinker.produceCollectorStrategy();
-							} else {
-								// Drop a rusher
-								// Put a worker in the position closest to an enemy unit
-								thinker.strategy = () -> thinker.produceRusherStrategy(units.worker);
-							}
-						} else {
-							thinker.strategy = () -> thinker.doNothingStrategy();
-						}
-					} else if (gs.getActionAssignment(unit).action.getType() != UnitAction.TYPE_PRODUCE) {
-						DebugUtils.print("Base assignment " + gs.getActionAssignment(unit));
-					}
-				}
-
-				if (units.isBarracks(unit) && units.getAction(unit) == null) {
-					if (eval.numAvailableResources >= units.ranged.cost) {
-						thinker.strategy = () -> thinker.produceRusherStrategy(units.ranged);
-
-						eval.numAvailableResources -= units.ranged.cost;
-					}
-				}
-
-				if (units.isRanged(unit)) {
-					// I'm a ranged warrior, I'm here to eat butt and kick popcorn
-					thinker.strategy = () -> thinker.rangedTempStrategy();
-				}
-			}
-		}
-
 		// BROTHERS STRATEGY
 		if (numBrothers == 2) {
 			Unit closestEnemy = units.findClosestUnit(brothers[0].getX(), brothers[0].getY(), (Unit u) -> units.isEnemy(u));
@@ -208,14 +107,42 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 			
 			brotherA.strategy = () -> brotherA.driveByStrategy(closestEnemy);
 		}
+		
+		// Coordinate misc
+		for (Unit unit : units.myUnits) {
+			UnitThinker thinker = unitThinkers.get(unit);
+
+			if (units.isBase(unit)) {
+				if (eval.numAvailableResources >= units.worker.cost) {
+					if (eval.numWorker < 2 /* temp */) {
+						// Produce a worker
+						thinker.strategy = () -> thinker.produceCollectorStrategy();
+					} else {
+						// Produce a rusher
+						// Put a worker in the position closest to an enemy unit
+						thinker.strategy = () -> thinker.produceRusherStrategy(units.worker);
+					}
+				}
+			}
+
+			if (units.isBarracks(unit) && units.getAction(unit) == null) {
+				if (eval.numAvailableResources >= units.ranged.cost) {
+					thinker.strategy = () -> thinker.produceRusherStrategy(units.ranged);
+
+					eval.numAvailableResources -= units.ranged.cost;
+				}
+			}
+		}
 
 		// Tick the thinkers
+		boolean[] blockedTiles = new boolean[pgs.getWidth() * pgs.getHeight()];
+		
 		for (Unit key : unitThinkers.keySet()) {
-			unitThinkers.get(key).tick(gs);
+			unitThinkers.get(key).tick(gs, blockedTiles);
 
 			actions.put(key, unitThinkers.get(key).getAction());
 		}
-
+		
 		// Done! Play our moves!
 		return translateActions(player, gs);
 	}
@@ -250,5 +177,117 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 
 		// Reassign the unit thinker map with the new map
 		unitThinkers = newUnitThinkers;
+	}
+	
+	/**
+	 * \brief Coordinates the workers
+	 * \param eval a GameEvaluator representing the current state of the game
+	 */
+	private void coordinateWorkers(GameEvaluator eval) {
+		Unit closestResource = units.myBase != null ? units.findClosestUnit(units.myBase.getX(), units.myBase.getY(), (Unit u) -> units.isResource(u)) : null;
+		boolean isSafeToBuildBarracks = true;//MapUtils.getDangerTime(ourBase.getX(), ourBase.getY(), 1, units) > 80;
+		boolean wannaBuildBarracks = units.myBase != null && isSafeToBuildBarracks && eval.numBarracks == 0 && eval.numBuildingBarracks == 0;
+		wannaBuildBarracks = false;
+		boolean canBuildBarracks = wannaBuildBarracks && eval.numAvailableResources > units.barracks.cost;
+		int numCollectorsRequired = 1;
+		
+		// Decide number of workers to have
+		if (wannaBuildBarracks && eval.numAvailableResources < units.barracks.cost + 5) {
+			// We want to build barracks, so get more workers in there
+			numCollectorsRequired = 2;
+		}
+
+		if (eval.numBarracks > 0 && eval.numAvailableResources < 5) {
+			// We want enough resources to build more things
+			numCollectorsRequired = 2;
+		}
+		
+		// Sort the worker list from closest to base to furthest
+		if (units.myBase != null && closestResource != null) {
+			// Sort them in order of distance from our base, if possible (closest to furthest)
+			HashMap<Unit, UnitThinker> tempThinkers = unitThinkers;
+			units.myWorkers.sort((Unit a, Unit b) -> 
+				  (MapUtils.distance(a, units.myBase) + MapUtils.distance(a, closestResource) - a.getResources() * 2)
+				- (MapUtils.distance(b, units.myBase) + MapUtils.distance(b, closestResource) - b.getResources() * 2));
+		} else {
+			// Until a backup (rebuild the base!) strategy is created, don't send any collectors if we lose our base or resources
+			numCollectorsRequired = 0;
+		}
+		
+		// See if we have a builder
+		for (Unit worker : units.myWorkers) {
+			if (unitThinkers.get(worker).role.equals("build")) {
+				if (canBuildBarracks) {
+					eval.numBuildingBarracks++;					
+				} else {
+					unitThinkers.get(worker).role = "";
+				}
+			}
+		}
+		
+		// When a ranged warrior enters the scene, let workers retreat to only the Brothers strategy, which only kills when safe
+		
+		// Command the rest of the workers
+		for (Unit worker : units.myWorkers) {
+			UnitThinker thinker = unitThinkers.get(worker);
+			
+			// Assign collectors
+			if (numCollectorsRequired > 0) {
+				thinker.strategy = () -> thinker.workerCollectStrategy();
+				thinker.role = "collect";
+				
+				numCollectorsRequired--;
+			}
+
+			// Assign barracks builders
+			else if ((canBuildBarracks && eval.numBuildingBarracks == 0 && worker.getResources() == 0) || thinker.role.equals("build")) {
+				thinker.strategy = () -> thinker.workerBuildBarracksStrategy();
+				thinker.role = "build";
+				
+				// Update evaluation
+				eval.numAvailableResources -= units.barracks.cost;
+				eval.numBuildingBarracks++;
+			}
+			
+			// Assign ninjas
+			else if (eval.doesPathToEnemyExist) {
+				// Attack the closest enemy
+				// Todo attack enemies close to the base?
+				Unit closestEnemy = units.findClosestUnit(worker.getX(), worker.getY(), (Unit u) -> u.getPlayer() != playerId && u.getPlayer() != -1);
+	
+				if (closestEnemy != null) {
+					//Unit enemyToTarget = units.enemyBase;
+					Unit enemyToTarget = closestEnemy;
+					thinker.strategy = () -> thinker.ninjaWarriorStrategy(enemyToTarget);
+					thinker.role = "attack";
+					//thinker.strategy = () -> thinker.driveByStrategy(enemyToTarget);
+				}
+			}
+
+			// Assign empty action (vacate the base)
+			else {
+				thinker.strategy = () -> thinker.vacateBaseStrategy();
+				thinker.role = "vacate";
+			}
+		}
+	}
+	
+	/**
+	 * \brief 
+	 * \param eval a GameEvaluator representing the current game state
+	 */
+	private void coordinateAttackers(GameEvaluator eval) {
+		for (Unit attacker : units.myUnits) {
+			// Only order idle attackers to attack
+			UnitThinker thinker = unitThinkers.get(attacker);
+			if (!attacker.getType().canAttack || thinker.strategy != null) {
+				continue;
+			}
+
+			if (units.isRanged(attacker)) {
+				// I'm a ranged warrior, I'm here to eat butt and kick popcorn
+				thinker.strategy = () -> thinker.rangedTempStrategy();
+			}
+		}
 	}
 }

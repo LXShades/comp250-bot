@@ -21,11 +21,18 @@ public class UnitUtils {
     public UnitType barracks; /**< barracks...es */
     public UnitType light;    /**< light units */
     public UnitType heavy;    /**< heavy units */
-    public UnitType ranged;   /**< ranged units*/
+    public UnitType ranged;   /**< ranged units */
+
+    // Unit lists (note: only as many as my bot needs)
+    public ArrayList<Unit> myUnits = new ArrayList<Unit>(); /**< units owned by this player */
+    public ArrayList<Unit> myWorkers = new ArrayList<Unit>(); /**< workers owned by this player */
     
+    public Unit myBase = null; /**< Our base on the map, or the base with the lowest ID if there are multiple */
+    public Unit enemyBase = null; /**< The enemy base on the map, or the base with the lowest ID if there are multiple */
+    
+    // Misc vars
     private int playerId; /**< The player owning this unit utils */
     private GameState gs; /**< The gamestate on the last tick */
-   
     
     /**
      * \brief Initialises the unit utilities
@@ -35,7 +42,7 @@ public class UnitUtils {
 		// Prefetch game unit type information
 		worker = utt.getUnitType("Worker");
 		base = utt.getUnitType("Base");
-		resource = utt.getUnitType("Resources");
+		resource = utt.getUnitType("Resource");
 		barracks = utt.getUnitType("Barracks");
 		light = utt.getUnitType("Light");
 		heavy = utt.getUnitType("Heavy");
@@ -48,8 +55,30 @@ public class UnitUtils {
      * \param gs the current GameState
      */
     public void tick(int playerId, GameState gs) {
+    	// Refresh vars
     	this.playerId = playerId;
     	this.gs = gs;
+    	
+    	// Refresh unit lists
+    	myUnits.clear();
+    	myWorkers.clear();
+    	
+    	// Fill unit list with specific prefetched information
+    	for (Unit u : gs.getUnits()) {
+    		if (u.getPlayer() == playerId) {
+    			myUnits.add(u);
+    			
+    			if (u.getType() == worker) {
+    				myWorkers.add(u);
+    			} else if (u.getType() == base) {
+    				myBase = u;
+    			}
+    		} else {
+    			if (u.getType() == base) {
+    				enemyBase = u;
+    			}
+    		}
+    	}
     }
     
     /**
@@ -189,6 +218,22 @@ public class UnitUtils {
 		}
 
 		return bestUnit;
+	}
+	
+	/**
+	 * \brief Returns the first unit found matching the given conditions
+	 * \return the first unit found matching the given conditions, or null if not found
+	 */
+	public Unit findFirstUnit(UnitConditions conditions) {
+		// Find and return the first match
+		for (Unit unit : gs.getUnits()) {
+			if (conditions.meetsConditions(unit)) {
+				return unit;
+			}
+		}
+		
+		// or fail
+		return null;
 	}
 	
 	/**

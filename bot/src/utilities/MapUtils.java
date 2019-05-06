@@ -1,6 +1,8 @@
 package utilities;
 
 import ai.abstraction.pathfinding.PathFinding;
+import extra_abstractions.DoNothing;
+import extra_abstractions.Step;
 import rts.GameState;
 import rts.PhysicalGameState;
 import rts.ResourceUsage;
@@ -99,6 +101,17 @@ public class MapUtils {
 		return Math.abs(a.getX() - x) + Math.abs(a.getY() - y);
 	}
 
+	/**
+	 * \brief Returns the Euclidean distance between a unit and a location. Useful for moving away from things
+	 * \param a the unit
+	 * \param x the X coordinate of the location
+	 * \param y the Y coordinate of the location
+	 * \return the Euclidean distance between the two points
+	 */
+	public static float euclideanDistance(Unit a, int x, int y) {
+		return (float)Math.sqrt((double)((a.getX() - x) * (a.getX() - x) + (a.getY() - y) * (a.getY() - y)));
+	}
+	
 	/**
 	 * Returns how quickly it would take to receive a certain amount of damage at the given tile, if every enemy unit attacked
 	 * \param x the X coordinate of the position
@@ -243,6 +256,21 @@ public class MapUtils {
 		PhysicalGameState pgs = gs.getPhysicalGameState();
 		return (x >= 0 && y >= 0 && x < pgs.getWidth() && y < pgs.getHeight() && gs.free(x, y));
 	}
+
+	/**
+	 * \brief Returns whether the tile at the given position is free AND exists, and is not in blockedTiles
+	 * \param x the X coordinate of the tile
+	 * \param y the Y coordinate of the tile
+	 * \param gs current game state
+	 * \param blockedTiles an array where the index=a position and the value=whether that position is blocked by a moving ally
+	 * \return true of the tile is free and exists, false otherwise
+	 */
+	public static boolean tileIsFree(int x, int y, GameState gs, boolean[] blockedTiles) {
+		PhysicalGameState pgs = gs.getPhysicalGameState();
+		int position = toPosition(x, y, gs);
+		
+		return (x >= 0 && y >= 0 && x < pgs.getWidth() && y < pgs.getHeight() && !blockedTiles[position] && gs.free(x, y));
+	}
 	
 	/**
 	 * \brief Returns whether a path currently exists between two points
@@ -256,5 +284,16 @@ public class MapUtils {
 	public static boolean doesPathExist(Unit start, int targetX, int targetY, PathFinding pf, GameState gs) {
 		ResourceUsage ru = new ResourceUsage();
 		return pf.pathToPositionInRangeExists(start, toPosition(targetX, targetY, gs), 1, gs, ru);
+	}
+	
+	/**
+	 * Returns the position of a unit's single step in 'stepDirection'
+	 * \param unit the unit to start at
+	 * \param stepDirection the direction to step in
+	 * \param gs the current GameState
+	 * \return the unit's position after a step in this direction
+	 */
+	public static int getStep(Unit unit, int stepDirection, GameState gs) {
+		return toPosition(unit.getX() + UnitAction.DIRECTION_OFFSET_X[stepDirection], unit.getY() + UnitAction.DIRECTION_OFFSET_Y[stepDirection], gs);
 	}
 }

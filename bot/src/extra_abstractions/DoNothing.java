@@ -10,15 +10,16 @@ import rts.units.Unit;
 import rts.units.UnitType;
 import util.XMLWriter;
 
+/**
+ * \brief Makes the unit do nothing for the given duration
+ *
+ */
 public class DoNothing extends AbstractAction {
-	// Unit information
-    UnitType type;
-    Unit unit;
+    Unit unit; /**< The unit to wait this action */
     
-    // How long we'll wait for
-    int waitDuration;
+    int waitDuration; /**< How long we'll wait for */
     
-    boolean completed = false;
+    boolean completed = false; /**< Whether this action has been completed */
     
     // Wait for the given period
     public DoNothing(Unit u, int duration) {
@@ -35,18 +36,16 @@ public class DoNothing extends AbstractAction {
     
     public boolean equals(Object o)
     {
-        if (!(o instanceof Train)) return false;
-        TrainWithPreferredTile a = (TrainWithPreferredTile)o;
-        if (type != a.type) return false;
-        
-        return true;
+        if (!(o instanceof DoNothing)) return false;
+        DoNothing a = (DoNothing)o;
+        return a.unit == unit && a.waitDuration == waitDuration;
     }
     
     
     public void toxml(XMLWriter w)
     {
-        w.tagWithAttributes("Train","unitID=\""+unit.getID()+"\" type=\""+type.name+"\"");
-        w.tag("/Train");
+        w.tagWithAttributes("DoNothing","unitID=\""+unit.getID()+"\" duration=\""+waitDuration+"\"");
+        w.tag("/DoNothing");
     }     
     
     public UnitAction execute(GameState gs, ResourceUsage ru) {        
