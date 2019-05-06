@@ -67,8 +67,8 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
         //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/10x10/basesWorkers10x10.xml", utt);
         //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/8x8/basesWorkers8x8Obstacle.xml", utt);
         //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/12x12/basesWorkers12x12.xml", utt);
-        //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/24x24/basesWorkers24x24.xml", utt);
-        PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/noWhereToRun9x8.xml", utt);
+        PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/24x24/basesWorkers24x24.xml", utt);
+        //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/noWhereToRun9x8.xml", utt);
 
         // Init locals
         GameState gs = new GameState(pgs, utt);
@@ -78,7 +78,7 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
         // Load bots
         //AI ai1 = new WorkerRush(utt, new BFSPathFinding());
         AI ai1 = new MyDisappointingRoboticSon(utt);
-        AI ai2 = new WorkerRush(utt);
+        AI ai2 = new RangedRush(utt);
         //AI ai2 = new LightRush(utt);
 
         PhysicalGameStateJFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);

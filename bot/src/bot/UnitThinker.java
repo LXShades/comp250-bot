@@ -242,7 +242,7 @@ public class UnitThinker {
 						}
 						
 						// Pick the position furthest from the enemies, but ideally at least two tiles from the base and resources
-						int heuristic = MapUtils.distance(tileX,  tileY, avoidX, avoidY) + Math.min(MapUtils.distance(myBase, tileX, tileY), 2);
+						int heuristic = Math.min(MapUtils.distance(tileX,  tileY, avoidX, avoidY), 2) + Math.min(MapUtils.distance(myBase, tileX, tileY), 2);
 
 						if (doesResourceExist) {
 							heuristic += Math.min(MapUtils.distance(units.findClosestUnit(tileX, tileY, (Unit u) -> units.isResource(u)), tileX, tileY), 2);
@@ -305,9 +305,8 @@ public class UnitThinker {
 
 	/**
 	 * \brief Attacks neighbours Or potential neighbours
-	 * \param onlyIfDangerous if true, only attacks enemies that endanger this unit
+	 * \param onlyIfDangerous if true, only attacks enemies that can attack
 	 * \return whether the strategy was undertaken
-	 * TODO: max wait time so it doesn't spare units who don't attack
 	 */
 	public boolean attackNeighbourStrategy(boolean onlyIfDangerous, int maxWaitTime) {
 		if (units.getAction(unit) != null) {

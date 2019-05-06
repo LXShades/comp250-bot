@@ -195,7 +195,7 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 			UnitThinker thinker = unitThinkers.get(worker);
 			
 			// Assign collectors
-			if (numCollectorsRequired > 0) {
+			if (numCollectorsRequired > 0 && !thinker.role.equals("build")) {
 				thinker.strategy = () -> thinker.workerCollectStrategy();
 				thinker.role = "collect";
 				
@@ -236,10 +236,14 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 	}
 	
 	/**
-	 * \brief 
+	 * \brief Coordinates attacking units
 	 * \param eval a GameEvaluator representing the current game state
 	 */
 	private void coordinateAttackers(GameEvaluator eval) {
+		// Sort units by reverse distance from the base
+		units.myUnits.sort((Unit a, Unit b) -> MapUtils.distance(b, units.myBase) - MapUtils.distance(a, units.myBase));
+		
+		// Order basic attackers to attack
 		for (Unit attacker : units.myUnits) {
 			// Only order idle attackers to attack
 			UnitThinker thinker = unitThinkers.get(attacker);
@@ -252,8 +256,45 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 				thinker.strategy = () -> thinker.rangedTempStrategy();
 			}
 		}
+
+		// Testing: Try advanced strategies with frontmost workers
+		int numBrothersRequired = (eval.numWorker + eval.numRanged) >= 5 ? 2 : 0;
+		int numDriveBysRequired = (eval.numWorker + eval.numRanged) >= 5 ? 1 : 0;  
+		
+		// Brothers go first
+		ArrayList<UnitThinker> brothers = new ArrayList<UnitThinker>();
+		
+		for (Unit attacker : units.myUnits) {
+			UnitThinker thinker = unitThinkers.get(attacker);
+			
+			if (attacker.getType().canAttack) {
+				if (numBrothersRequired > 0) {
+					numBrothersRequired--;
+					
+					brothers.add(thinker);
+				} else if (numDriveBysRequired > 0) {
+					Unit closestEnemy = units.findClosestUnit(attacker.getX(), attacker.getY(), (Unit u) -> units.isEnemy(u));
+					numDriveBysRequired--;
+					
+					thinker.strategy = () -> thinker.driveByStrategy(closestEnemy);
+				}
+			}
+		}
+		
+		// Assign brothers
+		for (int i = 0; i < brothers.size() - 1; i += 2) {
+			UnitThinker broA = brothers.get(i), broB = brothers.get(i + 1);
+			Unit closestEnemy = units.findClosestUnit(broA.getUnit().getX(), broA.getUnit().getY(), (Unit u) -> units.isEnemy(u));
+
+			broA.strategy = () -> broA.brotherStrategy(broB.getUnit(), closestEnemy);
+			broB.strategy = () -> broB.brotherStrategy(broA.getUnit(), closestEnemy);
+		}
 	}
 	
+	/**
+	 * \brief Coordinates unit producers such as bases and barracks
+	 * \param eval a GameEvaluator representing the current game state
+	 */
 	private void coordinateProducers(GameEvaluator eval) {
 		for (Unit unit : units.myUnits) {
 			UnitThinker thinker = unitThinkers.get(unit);
