@@ -185,9 +185,8 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 	 */
 	private void coordinateWorkers(GameEvaluator eval) {
 		Unit closestResource = units.myBase != null ? units.findClosestUnit(units.myBase.getX(), units.myBase.getY(), (Unit u) -> units.isResource(u)) : null;
-		boolean isSafeToBuildBarracks = true;//MapUtils.getDangerTime(ourBase.getX(), ourBase.getY(), 1, units) > 80;
+		boolean isSafeToBuildBarracks = units.myBase != null ? MapUtils.getDangerTime(units.myBase.getX(), units.myBase.getY(), 1, units) > 80 : false;
 		boolean wannaBuildBarracks = units.myBase != null && isSafeToBuildBarracks && eval.numBarracks == 0 && eval.numBuildingBarracks == 0;
-		wannaBuildBarracks = false;
 		boolean canBuildBarracks = wannaBuildBarracks && eval.numAvailableResources > units.barracks.cost;
 		int numCollectorsRequired = 1;
 		
