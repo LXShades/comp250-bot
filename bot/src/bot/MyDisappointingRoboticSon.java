@@ -93,31 +93,8 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 		// --- Coordinate the other attackers ---
 		coordinateAttackers(eval);
 		
-		// Coordinate misc
-		for (Unit unit : units.myUnits) {
-			UnitThinker thinker = unitThinkers.get(unit);
-
-			if (units.isBase(unit)) {
-				if (eval.numAvailableResources >= units.worker.cost) {
-					if (eval.numWorker < 2 /* temp */) {
-						// Produce a worker
-						thinker.strategy = () -> thinker.produceCollectorStrategy();
-					} else {
-						// Produce a rusher
-						// Put a worker in the position closest to an enemy unit
-						thinker.strategy = () -> thinker.produceRusherStrategy(units.worker);
-					}
-				}
-			}
-
-			if (units.isBarracks(unit) && units.getAction(unit) == null) {
-				if (eval.numAvailableResources >= units.ranged.cost) {
-					thinker.strategy = () -> thinker.produceRusherStrategy(units.ranged);
-
-					eval.numAvailableResources -= units.ranged.cost;
-				}
-			}
-		}
+		// --- Coordinate the producers ---
+		coordinateProducers(eval);
 
 		// Tick the thinkers
 		boolean[] blockedTiles = new boolean[pgs.getWidth() * pgs.getHeight()];
@@ -273,6 +250,33 @@ public class MyDisappointingRoboticSon extends AbstractionLayerAI {
 			if (units.isRanged(attacker)) {
 				// I'm a ranged warrior, I'm here to eat butt and kick popcorn
 				thinker.strategy = () -> thinker.rangedTempStrategy();
+			}
+		}
+	}
+	
+	private void coordinateProducers(GameEvaluator eval) {
+		for (Unit unit : units.myUnits) {
+			UnitThinker thinker = unitThinkers.get(unit);
+
+			if (units.isBase(unit)) {
+				if (eval.numAvailableResources >= units.worker.cost && (eval.doesPathToEnemyExist || eval.numWorker < 5)) {
+					if (eval.numWorker < 2 /* temp */) {
+						// Produce a worker
+						thinker.strategy = () -> thinker.produceCollectorStrategy();
+					} else {
+						// Produce a rusher
+						// Put a worker in the position closest to an enemy unit
+						thinker.strategy = () -> thinker.produceRusherStrategy(units.worker);
+					}
+				}
+			}
+
+			if (units.isBarracks(unit) && units.getAction(unit) == null) {
+				if (eval.numAvailableResources >= units.ranged.cost) {
+					thinker.strategy = () -> thinker.produceRusherStrategy(units.ranged);
+
+					eval.numAvailableResources -= units.ranged.cost;
+				}
 			}
 		}
 	}

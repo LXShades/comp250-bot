@@ -177,6 +177,11 @@ public class UnitThinker {
 		} else {
 			// TODO: a backup strategy
 		}
+		
+		// Detect long waits and move away if necessary
+		if (timeWaited > 20) {
+			vacateBaseStrategy();
+		}
 	}
 
 	/**
@@ -720,7 +725,7 @@ public class UnitThinker {
 				DebugUtils.setUnitLabel(unit, "[ranged] DIE!!");
 			} else {
 				DebugUtils.setUnitLabel(unit, "[ranged] CHASING!");
-				moveStrategy(closestEnemy.getX(), closestEnemy.getY(), 2);				
+				moveStrategy(closestEnemy.getX(), closestEnemy.getY(), 2);
 			}
 		} else {
 			DebugUtils.setUnitLabel(unit, "[ranged] chilling");
@@ -749,20 +754,24 @@ public class UnitThinker {
 		if (myBase != null) {
 			float bestDistance = MapUtils.euclideanDistance(unit, myBase.getX(), myBase.getY());
 			int targetX = unit.getX(), targetY = unit.getY();
-			for (int i = 0; i < 4; i++) {
-				int tileX = unit.getX() + UnitAction.DIRECTION_OFFSET_X[i], tileY = unit.getY() + UnitAction.DIRECTION_OFFSET_Y[i];
+			int range = 3;
 			
-				if (MapUtils.tileIsFree(tileX, tileY, units.getGameState())) {
-					float distance = MapUtils.euclideanDistance(myBase, tileX, tileY);
-					
-					if (distance > bestDistance) {
-						bestDistance = distance;
-						targetX = tileX;
-						targetY = tileY;
+			// Look ahead a few tiles
+			for (int x = Math.max(unit.getX() - range, 0); x <= unit.getX() + range; x++) {
+				for (int y = Math.max(unit.getY() - range, 0); y <= unit.getY() + range; y++) {
+					if (MapUtils.tileIsFree(x, y, units.getGameState())) {
+						float distance = MapUtils.euclideanDistance(myBase, x, y);
+						
+						if (distance > bestDistance) {
+							bestDistance = distance;
+							targetX = x;
+							targetY = y;
+						}
 					}
 				}
 			}
 			
+			// Run to that furthest tile if possible
 			if (targetX != unit.getX() || targetY != unit.getY()) {
 				moveStrategy(targetX, targetY, 0);
 				DebugUtils.setUnitLabel(unit, "[vacate] move");
