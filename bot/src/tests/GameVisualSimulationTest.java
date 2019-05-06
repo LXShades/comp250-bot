@@ -25,6 +25,7 @@ import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.OutputStreamWriter;
+import java.lang.reflect.Field;
 import java.util.zip.ZipInputStream;
 
 import javax.swing.JFileChooser;
@@ -64,22 +65,23 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
         UnitTypeTable utt = new UnitTypeTable();
         //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/8x8/bases8x8.xml", utt);
         //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/10x10/basesWorkers10x10.xml", utt);
-        //PhysicalGameState pgs = MapGenerator.basesWorkers8x8Obstacle();
+        PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/8x8/basesWorkers8x8Obstacle.xml", utt);
         //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/12x12/basesWorkers12x12.xml", utt);
-        PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/24x24/basesWorkers24x24.xml", utt);
+        //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/24x24/basesWorkers24x24.xml", utt);
         //PhysicalGameState pgs = PhysicalGameState.load("../microrts/maps/noWhereToRun9x8.xml", utt);
 
+        // Init locals
         GameState gs = new GameState(pgs, utt);
         int MAXCYCLES = 5000;
         int PERIOD = 20;
         
+        // Load bots
         //AI ai1 = new WorkerRush(utt, new BFSPathFinding());
         AI ai2 = new MyDisappointingRoboticSon(utt);
         AI ai1 = new WorkerRush(utt);
         //AI ai2 = new LightRush(utt);
 
         PhysicalGameStateJFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_BLACK);
-//        JFrame w = PhysicalGameStatePanel.newVisualizer(gs,640,640,false,PhysicalGameStatePanel.COLORSCHEME_WHITE);
        
         // Make the world easier for myself, Louis, the almighty creator of the finest and highly tested robots.
         w.addWindowListener(this); // let me close the window without it still running!
@@ -87,8 +89,13 @@ public class GameVisualSimulationTest implements KeyListener, WindowListener {
         
         // uncomment this to load an existing trace
         //loadTrace();
-        // uncomment this to make it work on the server
-        PhysicalGameStatePanel.unitLabels = DebugUtils.getUnitLabels();
+        
+        // Set the debug labels if the capability exists
+        for (Field field : PhysicalGameStatePanel.class.getFields()) {
+            if (field.getName().equals("unitLabels")) {
+            	field.set(null, DebugUtils.getUnitLabels());
+            }        	
+        }
         
         long nextTimeToUpdate = System.currentTimeMillis() + PERIOD;
         boolean doFrameStep = false;
